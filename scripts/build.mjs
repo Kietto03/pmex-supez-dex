@@ -50,6 +50,11 @@ function parseDate(s) {
   return `${y}-${mo.padStart(2, '0')}-${d.padStart(2, '0')}T${h.padStart(2, '0')}:${mi}`;
 }
 
+// The datamine calls the player character "Player"; PoMaTools and the game name him Scottie.
+// Renaming at parse time merges "Player & Poipole" with PoMaTools' "Scottie & Poipole" and reuses his sprite.
+const TRAINER_RENAMES = [[/^Player\b/, 'Scottie']];
+const renameTrainer = name => TRAINER_RENAMES.reduce((n, [re, to]) => n.replace(re, to), name);
+
 function splitPairName(full) {
   // "Sygna Suit Lysandre (Alt.) & Chi-Yu (Genderless) - Tera Type Fire"
   let s = full.trim();
@@ -57,7 +62,7 @@ function splitPairName(full) {
   const formM = s.match(/\s+-\s+(.+)$/);
   if (formM) { form = formM[1].trim(); s = s.slice(0, formM.index); }
   const amp = s.indexOf(' & ');
-  const trainer = amp > -1 ? s.slice(0, amp).trim() : s;
+  const trainer = renameTrainer(amp > -1 ? s.slice(0, amp).trim() : s);
   let poke = amp > -1 ? s.slice(amp + 3) : '';
   let gender = '';
   const g = poke.match(/\((Male♂️|Female♀️|Genderless)\)/);
@@ -85,6 +90,17 @@ function parseMoveStats(line) {
   return r;
 }
 
+// Pair category from the datamine "Method:" line — only used for pairs PoMaTools doesn't know yet
+// (PoMaTools' own category wins otherwise). "Method" is how the pair is obtained in that update, so
+// Exchange / Mission Reward say nothing about the category and stay blank. Checked against every
+// datamine pair that PoMaTools also has: Spotlight Scout and Lodge friendship pairs are General.
+const METHOD_CATEGORY = [
+  [/EX Master Fair/i, 'masterex'], [/EX (Poké )?Fair/i, 'pokefairex'], [/Master Fair/i, 'master'], [/Arc Suit/i, 'arc'],
+  [/Pok[eé] Fair/i, 'pokefair'], [/Seasonal/i, 'seasonal'], [/Special Costume/i, 'special'], [/Variety/i, 'variety'],
+  [/Mix Scout/i, 'mix'], [/Academy/i, 'academy'], [/Spotlight|Friendship Level-Up/i, 'general'],
+];
+const categoryFromMethod = m => METHOD_CATEGORY.find(([re]) => re.test(m || ''))?.[1] || '';
+
 // ─── Trainer.txt ────────────────────────────────────────────
 function parseTrainers(text, version) {
   const body = text.slice(text.indexOf('=========', text.indexOf('=========') + 9) + 9);
@@ -101,7 +117,7 @@ function parseTrainers(text, version) {
     const t = {
       key: lines[head], number: +hm[1], ...names, version,
       form: names.form, dialog: '', description: '', role: '', exRole: '',
-      type: '', weakness: '', rarity: 0, expedition: '', method: '', itemExchange: '',
+      type: '', weakness: '', rarity: 0, expedition: '', method: '', category: '', itemExchange: '',
       collectInfo: '', exColor: false, teamSkills: [], dates: {},
       moves: [], syncMove: null, passives: [], superPassive: null, stats: {},
       megaStats: {}, teraMoves: [], teraPassives: [], megaMoves: [],
@@ -140,7 +156,7 @@ function parseTrainers(text, version) {
         }
         if (line.startsWith('Rarity:')) { t.rarity = (line.match(/⭐/g) || []).length; continue; }
         if (line.startsWith('Expedition')) { t.expedition = line.replace(/^Expedition[^:]*:\s*/, ''); continue; }
-        if (line.startsWith('Method:')) { t.method = after('Method:'); continue; }
+        if (line.startsWith('Method:')) { t.method = after('Method:'); t.category = categoryFromMethod(t.method); continue; }
         if (line.startsWith('Item Exchange:')) { t.itemExchange = after('Item Exchange:'); continue; }
         if (line.startsWith('Collect items')) { t.collectInfo = line; continue; }
         if (line.includes('EX Color')) { t.exColor = line.includes('Yes'); continue; }
@@ -483,7 +499,7 @@ if (poma) {
       const onDm = f => f.kind === 'mega' && Object.keys(dm.megaStats || {}).length ? dm.megaStats
         : f.scale ? Object.fromEntries(Object.entries(dm.stats).map(([lv, row]) => [lv, Object.fromEntries(Object.entries(row)
           .map(([k, v]) => [k, Math.floor(v * (f.scale[SCALE_ORDER.indexOf(k)] ?? 100) / 100)]))])) : f.stats;
-      Object.assign(dm, { pomaId: q.pomaId, actorId: q.actorId, shiny: dm.shiny || q.shiny,
+      Object.assign(dm, { pomaId: q.pomaId, actorId: q.actorId, shiny: dm.shiny || q.shiny, category: q.category || dm.category,
         altForms: q.altForms.map(f => ({ ...f, stats: onDm(f) })) });
       // Tera details the datamine block didn't carry
       if (!dm.teraType && q.teraType) dm.teraType = q.teraType;
@@ -530,7 +546,7 @@ const FORM_SUFFIX = [
   [/Terastal Form/, 'terastal'], [/Stellar Form/, 'stellar'], [/Jumbo|Super Size/, 'super'], [/Large Variety/, 'large'],
   [/Orange Flower/, 'orange'], [/Yellow Flower/, 'yellow'], [/Blue Flower/, 'blue'], [/White Flower/, 'white'],
   [/Antique/, 'antique'], [/Wellspring/, 'wellspring'], [/Hearthflame/, 'hearthflame'], [/Cornerstone/, 'cornerstone'],
-  [/Crowned/, 'crowned'], [/Complete Forme/, 'complete'], [/10% Forme/, '10'],
+  [/Crowned/, 'crowned'], [/Rapid Strike/, 'rapidstrike'], [/Complete Forme/, 'complete'], [/10% Forme/, '10'],
   [/Ruby Cream/, 'rubycream'], [/Matcha Cream/, 'matchacream'], [/Mint Cream/, 'mintcream'], [/Lemon Cream/, 'lemoncream'],
   [/Salted Cream/, 'saltedcream'], [/Ruby Swirl/, 'rubyswirl'], [/Caramel Swirl/, 'caramelswirl'], [/Rainbow Swirl/, 'rainbowswirl'], [/Type Change: (\w+)/, m => m[1] === 'Normal' ? null : m[1].toLowerCase()],
 ];
@@ -657,22 +673,55 @@ async function attachSprites() {
     const c = pokemonCandidates(name, form);
     return (shiny && await sprite('pokemon-shiny', c)) || sprite('pokemon', c);
   };
+  // Gigantamax / Eternamax sprites ("charizard-gmax"); a plain Dynamax keeps the base sprite (the page adds the red aura)
+  const gmaxCandidates = (name, form) => pokemonCandidates(name, form).map(c => c.includes('-') ? `${c}gmax` : `${c}-gmax`); // urshifu-rapidstrikegmax
+  const isEternamax = (f, p) => f.kind === 'dynamax' && /^Eternatus$/i.test(f.pokemon || p.pokemon);
+  // Ogerpon's masks have their own Terastal sprites ("ogerpon-wellspringtera")
+  const teraCandidates = (name, form) => /^Ogerpon$/i.test(name)
+    ? [`ogerpon-${formSuffix(form) || 'teal'}tera`] : [];
+  const FORM_EXTRAS = ['moves', 'syncMove', 'passives', 'maxMoves', 'teraType', 'teraMoves', 'extraMoves'];
   await pool(finalPairs, 6, async p => {
     p.pokeSprite = await monSprite(p.pokemon, p.form, p.shiny);
     p.trainerSprite = customTrainerSprite(p.trainer) || await sprite('trainers', trainerCandidates(p.trainer, p.description));
-    // Mega / Primal / in-battle form changes — only kept when the sprite actually differs
-    // Datamine-only pairs know Mega stats but not the Mega's name
-    const forms = p.altForms?.length ? p.altForms
-      : Object.keys(p.megaStats || {}).length ? [{ kind: 'mega', pokemon: `Mega ${p.pokemon}`, form: '', stats: p.megaStats }] : [];
+    // Mega / Primal / Tera / Dynamax / in-battle form changes.
+    // Datamine-only pairs (no PoMaTools variants) only have the datamine's "Mega Stats" block — which the
+    // dataminer also uses for Zygarde Complete, Noice Face, Dynamax… — so it's a Mega only when a Mega sprite exists.
+    const forms = [...(p.altForms || [])];
+    if (!p.pomaId && !forms.length && Object.keys(p.megaStats || {}).length) {
+      const megaSpr = await sprite(p.shiny ? 'pokemon-shiny' : 'pokemon', pokemonCandidates(`Mega ${p.pokemon}`, ''));
+      forms.push(megaSpr
+        ? { kind: 'mega', pokemon: `Mega ${p.pokemon}`, form: '', stats: p.megaStats, extraMoves: p.megaMoves?.length ? p.megaMoves : undefined }
+        : { kind: 'form', pokemon: p.pokemon, form: '', label: 'Đổi form', stats: p.megaStats, extraMoves: p.megaMoves?.length ? p.megaMoves : undefined });
+    }
+    if (!forms.some(f => f.kind === 'tera') && p.teraType && (p.teraMoves?.length || p.teraPassives?.length))
+      forms.push({ kind: 'tera', pokemon: p.pokemon, form: '', teraType: p.teraType, teraMoves: p.teraMoves });
     p.altSprites = [];
     for (const f of forms) {
-      const spr = await monSprite(f.pokemon, f.form, f.shiny || p.shiny) || p.pokeSprite;
+      const shiny = f.shiny || p.shiny;
+      const special = f.kind === 'gigantamax' ? gmaxCandidates(f.pokemon, f.form || p.form)
+        : isEternamax(f, p) ? ['eternatus-eternamax']
+        : f.kind === 'tera' ? teraCandidates(f.pokemon, f.form || p.form) : [];
+      const spr = (special.length && ((shiny && await sprite('pokemon-shiny', special)) || await sprite('pokemon', special)))
+        || (f.form || f.pokemon !== p.pokemon ? await monSprite(f.pokemon, f.form, shiny) : null) || p.pokeSprite;
       const statsDiffer = f.stats && JSON.stringify(f.stats) !== JSON.stringify(p.stats);
-      // Keep a form when it looks different or fights with different stats (e.g. Zygarde 50% → Complete)
-      if ((spr !== p.pokeSprite || statsDiffer) && !p.altSprites.some(a => a.sprite === spr && JSON.stringify(a.stats) === JSON.stringify(f.stats))) {
-        p.altSprites.push({ kind: f.kind, label: f.kind === 'mega' ? f.pokemon : `${f.pokemon} · ${f.form}`, sprite: spr, stats: f.stats || null });
-      }
+      const extras = Object.fromEntries(FORM_EXTRAS.filter(k => f[k] !== undefined && f[k] !== null && f[k] !== '').map(k => [k, f[k]]));
+      // Keep a form when it looks different, fights with different stats (Zygarde 50% → Complete),
+      // swaps moves / passives (Deoxys formes), or is a battle mechanic of its own (Tera, Dynamax)
+      const changes = f.moves || f.syncMove || f.passives || f.extraMoves || ['tera', 'dynamax', 'gigantamax'].includes(f.kind);
+      if (!(spr !== p.pokeSprite || statsDiffer || changes)) continue;
+      if (p.altSprites.some(a => a.sprite === spr && JSON.stringify(a.stats) === JSON.stringify(f.stats) && a.kind === f.kind
+        && JSON.stringify(FORM_EXTRAS.map(k => a[k])) === JSON.stringify(FORM_EXTRAS.map(k => extras[k])))) continue;
+      const label = f.kind === 'mega' ? f.pokemon
+        : f.kind === 'gigantamax' ? `Gigantamax ${f.pokemon}` : isEternamax(f, p) ? 'Eternamax Eternatus'
+        : f.kind === 'dynamax' ? `Dynamax ${f.pokemon}`
+        : f.kind === 'tera' ? `${f.pokemon} · Tera ${f.teraType || p.teraType || ''}`.trim()
+        // Forms that rename the Pokémon ("Primal Groudon") need no extra label
+        : f.pokemon !== p.pokemon && !f.form && !f.label ? f.pokemon
+        : `${f.pokemon} · ${f.label || f.form || 'Form'}`;
+      p.altSprites.push({ kind: f.kind, label, sprite: spr, stats: f.stats || null, ...extras });
     }
+    const kinds = new Set(p.altSprites.map(a => a.kind));
+    p.mechanics = ['mega', 'tera', 'dynamax', 'gigantamax', 'form'].filter(k => kinds.has(k));
   });
   for (const e of scouts) {
     for (const r of e.rateUp) {
@@ -703,9 +752,11 @@ fs.writeFileSync(MISS_FILE, JSON.stringify([...misses].sort(), null, 1));
 // full details (moves, passives, grid…) go to data/pairs/<id>.js, loaded when a pair is opened.
 const SUMMARY_KEYS = ['id', 'key', 'number', 'trainer', 'pokemon', 'gender', 'shiny', 'form', 'version', 'versions', 'source',
   'gridOnly', 'gridVersion', 'role', 'exRole', 'type', 'weakness', 'rarity', 'teamSkills', 'dates', 'stats', 'megaStats',
-  'exColor', 'method', 'pokeSprite', 'trainerSprite', 'altSprites', 'teraType'];
+  'exColor', 'method', 'category', 'pokeSprite', 'trainerSprite', 'teraType', 'mechanics'];
 const summaries = finalPairs.map(p => ({
   ...Object.fromEntries(SUMMARY_KEYS.filter(k => p[k] !== undefined).map(k => [k, p[k]])),
+  // Per-form moves / passives only ship in data/pairs/<id>.js
+  altSprites: (p.altSprites || []).map(({ kind, label, sprite, stats }) => ({ kind, label, sprite, stats })),
   gridCount: p.grid?.length || 0,
 }));
 

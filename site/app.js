@@ -25,6 +25,24 @@ const ROLES = {
   Multi: { c: '#0f8b8d', i: '✺' },
 };
 
+// Battle mechanics a pair's Pokémon can switch into (altSprites[].kind); 'form' = in-battle form change
+const MECHANICS = {
+  base: { short: 'BASE', name: 'Dạng thường', c: '#6b7090' },
+  mega: { short: 'MEGA', name: 'Mega Evolution', c: '#7b3fe4', note: 'Mega Evolution: chỉ số tăng; move / passive chỉ có khi Mega mang nhãn MEGA.' },
+  tera: { short: 'TERA', name: 'Terastal', c: '#1fa8c9', note: 'Sync Terastal: Pokémon đổi sang Tera type, có thêm Tera Move và passive riêng (nhãn TERA).' },
+  dynamax: { short: 'D-MAX', name: 'Dynamax', c: '#e0245e', note: 'Dynamax: move của Pokémon được thay bằng Max Move tương ứng (← move gốc).' },
+  gigantamax: { short: 'G-MAX', name: 'Gigantamax', c: '#a3134f', note: 'Gigantamax: move của Pokémon được thay bằng G-Max Move / Max Move tương ứng (← move gốc).' },
+  eternamax: { short: 'E-MAX', name: 'Eternamax', c: '#5b1a8f', note: 'Eternamax: move của Pokémon được thay bằng Max Move tương ứng (← move gốc).' },
+  form: { short: 'FORM', name: 'Đổi form trong trận', c: '#3d7a8c', note: 'Đổi form trong trận: move / passive chỉ có ở form này mang nhãn FORM.' },
+};
+// Primal Reversion is a form change (FORM), only named differently in the tooltip
+const mechOf = f => f.kind === 'form' && /^Primal /.test(f.label) ? { ...MECHANICS.form, key: 'form', name: 'Primal Reversion' }
+  : /^Eternamax/.test(f.label) ? { ...MECHANICS.eternamax, key: 'eternamax' }
+  : { ...(MECHANICS[f.kind] || MECHANICS.form), key: MECHANICS[f.kind] ? f.kind : 'form' };
+// "Tera Type: X" in a form label is only the Tera marker, already shown by the TERA badge
+const formText = s => String(s || '').replace(/\s*\(Tera Type:\s*\w+\)|^Tera Type:\s*\w+$/g, '').trim();
+const mechFlag = k => `<span class="mechflag" style="--mc:${MECHANICS[k].c}">${MECHANICS[k].short}</span>`;
+
 const STAT_COLORS = {
   HP: '#3fcf6e', Attack: '#ff7a45', Defense: '#ffd23f',
   'Sp. Atk': '#4a8cff', 'Sp. Def': '#b36bff', Speed: '#ff5da2',
@@ -328,92 +346,206 @@ document.addEventListener('click', e => {
   if (!a) return;
   const [k, v] = a.dataset.setFilter.split(':');
   resetPairFilter();
-  if (k === 'role') pairFilter.role = v;
-  if (k === 'type') pairFilter.types = new Set([v]);
+  if (PF_GROUPS.some(g => g.id === k)) pairFilter.sel[k] = new Set([v]);
 });
 
 // ═══════════════════════════════════════════════════════════════
 //  SYNC PAIRS (all versions merged)
 // ═══════════════════════════════════════════════════════════════
 const PAGE = 120; // cards rendered per "Hiện thêm" step
+
+// Pair category (PoMaTools "Pair Category"; datamine "Method:" only for pairs PoMaTools doesn't have yet).
+// Ordered from the most limited banners to the general pool.
+const PAIR_CATS = [
+  { v: 'master', label: 'Master Fair', short: 'MASTER', c: '#d4a106' },
+  { v: 'masterex', label: 'EX Master Fair', short: 'EX MASTER', c: '#c2185b' },
+  { v: 'arc', label: 'Arc Suit', short: 'ARC', c: '#e8b800' },
+  { v: 'pokefair', label: 'Poké Fair', short: 'FAIR', c: '#e5484d' },
+  { v: 'pokefairex', label: 'EX Poké Fair', short: 'EX FAIR', c: '#7b3fe4' },
+  { v: 'seasonal', label: 'Seasonal', short: 'SEASONAL', c: '#2e9d57' },
+  { v: 'special', label: 'Special Costume', short: 'COSTUME', c: '#e0602a' },
+  { v: 'variety', label: 'Variety', short: 'VARIETY', c: '#0f8b8d' },
+  { v: 'mix', label: 'Mix', short: 'MIX', c: '#2f6fd6' },
+  { v: 'academy', label: 'Academy', short: 'ACADEMY', c: '#8a5a2b' },
+  { v: 'gym', label: 'Gym', short: 'GYM', c: '#5b6b7a' },
+  { v: 'general', label: 'General (thường)', short: 'GENERAL', c: '#6b7280' },
+  { v: 'unknown', label: 'Chưa rõ', c: '#44485a' },
+];
+const pairCat = p => PAIR_CATS.find(c => c.v === p.category) || PAIR_CATS.at(-1);
+// "Gym Leader Support" → theme "Gym Leader" (the last word is the role the skill boosts)
+const themesOf = p => [...new Set((p.teamSkills || []).map(s => s.replace(/\s+\S+$/, '')))];
+const yearOf = p => (p.release || '').slice(0, 4);
+const bst = p => Object.values(p.stats?.['200'] || {}).reduce((a, b) => a + b, 0);
+
+// Every filter group: options(pool) → [{ v, label, c?, icon? }], test(pair, value).
+// 'or' groups match any picked option, 'and' groups need all of them.
+const PF_GROUPS = [
+  { id: 'role', label: 'Role', mode: 'or',
+    options: () => Object.entries(ROLES).map(([r, x]) => ({ v: r, label: r, icon: x.i, c: x.c })),
+    test: (p, v) => p.roleBase === v || (pairFilter.exAsRole && roleBase(p.exRole) === v) },
+  { id: 'exrole', label: 'EX Role', mode: 'or',
+    options: () => [...Object.entries(ROLES).filter(([r]) => r !== 'Multi').map(([r, x]) => ({ v: r, label: r, icon: x.i, c: x.c })), { v: 'none', label: 'Không có' }],
+    test: (p, v) => v === 'none' ? !p.exRole : roleBase(p.exRole) === v },
+  { id: 'type', label: 'Type', mode: 'or', swatch: true,
+    options: () => TYPES.map(t => ({ v: t, label: t, c: TYPE_COLORS[t] })), test: (p, v) => p.type === v },
+  { id: 'weak', label: 'Weakness', mode: 'or', swatch: true,
+    options: () => TYPES.map(t => ({ v: t, label: t, c: TYPE_COLORS[t] })), test: (p, v) => p.weakness === v },
+  { id: 'rarity', label: 'Rarity', mode: 'or',
+    options: () => ['5', '4', '3'].map(r => ({ v: r, label: '★'.repeat(+r) })), test: (p, v) => String(p.rarity) === v },
+  { id: 'cat', label: 'Loại pair', mode: 'or', options: () => PAIR_CATS, test: (p, v) => pairCat(p).v === v },
+  { id: 'mech', label: 'Mechanic', mode: 'or',
+    options: () => ['mega', 'tera', 'dynamax', 'form'].map(k => ({ v: k, label: k === 'dynamax' ? 'Dynamax / G-Max' : MECHANICS[k].name, c: MECHANICS[k].c })),
+    // "Dynamax" also matches Gigantamax
+    test: (p, v) => (p.mechanics || []).some(k => k === v || (v === 'dynamax' && k === 'gigantamax')) },
+  { id: 'feat', label: 'Đặc điểm', mode: 'and',
+    options: () => [
+      { v: 'super', label: '🌅 Superawakened' }, { v: 'exrole', label: '🌈 Có EX Role' }, { v: 'excolor', label: '👕 EX Color' },
+      { v: 'shiny', label: '✨ Shiny' }, { v: 'soon', label: '🆕 Sắp ra (SOON)' },
+    ],
+    test: (p, v) => ({ super: !!p.dates?.Superawakened, exrole: !!p.exRole, excolor: !!p.exColor, shiny: !!p.shiny,
+      soon: !!p.release && toDate(p.release) > NOW }[v]) },
+  { id: 'year', label: 'Năm ra mắt', mode: 'or',
+    options: pool => [...new Set(pool.map(yearOf).filter(Boolean))].sort().reverse().map(y => ({ v: y, label: y })),
+    test: (p, v) => yearOf(p) === v },
+  { id: 'src', label: 'Nguồn / Version', mode: 'or',
+    options: () => [...D.versions.map(v => ({ v, label: `v${v}` })), ...(D.sources?.pomatools ? [{ v: 'DB', label: 'Pair cũ (DB)' }] : [])],
+    test: (p, v) => v === 'DB' ? p.isPoma : (p.versions || []).includes(v) },
+  { id: 'theme', label: 'Team Skill', mode: 'and', custom: true, test: (p, v) => themesOf(p).includes(v) },
+];
+const PF_SORTS = [['new', 'Mới nhất'], ['old', 'Cũ nhất'], ['no', 'Số No.'], ['name', 'Tên A→Z'], ['type', 'Theo Type'], ['bst', 'Tổng chỉ số Lv.200'], ['grid', 'Grid lớn nhất']];
+
 let pairFilter;
 function resetPairFilter() {
-  pairFilter = { q: '', role: 'all', exRole: true, types: new Set(), rarity: 'all', versions: new Set(), sort: 'new', expansions: false, limit: PAGE };
+  const keep = pairFilter ? { sort: pairFilter.sort, collapsed: pairFilter.collapsed } : { sort: 'new', collapsed: new Set(['weak', 'exrole', 'year', 'src']) };
+  pairFilter = { q: '', sel: Object.fromEntries(PF_GROUPS.map(g => [g.id, new Set()])), exAsRole: true, expansions: false, limit: PAGE, open: false, ...keep };
 }
 resetPairFilter();
 
-function filteredPairs() {
-  const f = pairFilter;
-  const q = f.q.toLowerCase();
-  let list = (f.expansions ? D.pairs : PAIRS).filter(p => {
-    if (q && !`${p.trainer} ${p.pokemon} ${p.type} ${p.role} ${p.exRole} ${(p.teamSkills || []).join(' ')}`.toLowerCase().includes(q)) return false;
-    if (f.role !== 'all' && p.roleBase !== f.role && !(f.exRole && p.exRole === f.role)) return false;
-    if (f.types.size && !f.types.has(p.type)) return false;
-    if (f.rarity !== 'all' && String(p.rarity) !== f.rarity) return false;
-    if (f.versions.size && !(p.versions || []).some(v => f.versions.has(v)) && !(f.versions.has('DB') && p.isPoma)) return false;
-    return true;
-  });
+const pfActiveCount = () => PF_GROUPS.reduce((n, g) => n + pairFilter.sel[g.id].size, 0) + (pairFilter.q.trim() ? 1 : 0) + (pairFilter.expansions ? 1 : 0);
+const pfMatchGroup = (p, g) => {
+  const sel = pairFilter.sel[g.id];
+  if (!sel.size) return true;
+  return g.mode === 'and' ? [...sel].every(v => g.test(p, v)) : [...sel].some(v => g.test(p, v));
+};
+// Every word of the search box must appear somewhere in the pair's text
+function pfMatchQuery(p) {
+  const words = pairFilter.q.toLowerCase().split(/\s+/).filter(Boolean);
+  if (!words.length) return true;
+  const hay = (p._hay ||= [p.trainer, p.pokemon, p.form, p.type, p.weakness, p.role, p.exRole, p.method, pairCat(p).label, p.teraType,
+    ...(p.teamSkills || []), ...(p.mechanics || [])].join(' ').toLowerCase());
+  return words.every(w => hay.includes(w));
+}
+const pfPool = () => pairFilter.expansions ? D.pairs : PAIRS;
+// skip: a group left out, so its own options can be counted against everything else ("faceted" counts)
+function filteredPairs(skip = null) {
+  const list = pfPool().filter(p => pfMatchQuery(p) && PF_GROUPS.every(g => g === skip || pfMatchGroup(p, g)));
+  if (skip) return list;
   const sorters = {
     new: (a, b) => (b.release || '').localeCompare(a.release || '') || a.number - b.number,
+    old: (a, b) => (a.release || '9999').localeCompare(b.release || '9999') || a.number - b.number,
     no: (a, b) => a.number - b.number,
-    name: (a, b) => a.trainer.localeCompare(b.trainer),
+    name: (a, b) => a.trainer.localeCompare(b.trainer) || a.pokemon.localeCompare(b.pokemon),
     type: (a, b) => TYPES.indexOf(a.type) - TYPES.indexOf(b.type) || a.trainer.localeCompare(b.trainer),
+    bst: (a, b) => bst(b) - bst(a),
     grid: (a, b) => (b.gridCount || 0) - (a.gridCount || 0),
   };
-  return list.sort(sorters[f.sort]);
+  return list.sort(sorters[pairFilter.sort] || sorters.new);
 }
 
 function renderPairs() {
+  const f = pairFilter;
   return `
   <h1 class="section-title" style="font-size:16px">Sync Pairs <span class="count">tất cả version gộp chung</span></h1>
-  <div class="box filters" id="pair-filters"></div>
-  <div class="pair-grid" id="pair-grid"></div>`;
+  <div class="pf-layout ${f.open ? 'open' : ''}" id="pf-layout">
+    <aside class="pf-side box" id="pf-side" aria-label="Bộ lọc"></aside>
+    <section class="pf-main">
+      <div class="pf-toolbar box">
+        <button class="chip pf-toggle" data-pf-toggle aria-expanded="${f.open}">☰ Bộ lọc <span class="pf-badge" id="pf-badge"></span></button>
+        <label class="search">🔍<input id="pf-q" type="search" placeholder="Tìm trainer, pokémon, team skill, cách nhận…" value="${esc(f.q)}" autocomplete="off"></label>
+        <label class="pf-sort"><span>Sắp xếp</span>
+          <select class="select" id="pf-sort">${PF_SORTS.map(([v, l]) => `<option value="${v}" ${f.sort === v ? 'selected' : ''}>${l}</option>`).join('')}</select>
+        </label>
+      </div>
+      <div class="pf-status">
+        <span class="result-count" id="pf-count"></span>
+        <div class="pf-active" id="pf-active"></div>
+      </div>
+      <div class="pair-grid" id="pair-grid"></div>
+    </section>
+  </div>`;
 }
 afterRender.pairs = () => { drawPairFilters(); drawPairGrid(); };
 afterRender.pair = id => { if (!pairDetail[id]) return; markClamped(); gridHover = null; drawGrid(pairDetail[id]); };
 
+function pfOptionChip(g, o, n) {
+  const on = pairFilter.sel[g.id].has(o.v);
+  const style = on && o.c ? `background:${o.c};color:#fff;text-shadow:1px 1px 0 rgba(0,0,0,.45)` : '';
+  return `<button class="chip pf-opt ${on ? 'on' : ''} ${!n && !on ? 'zero' : ''}" data-pf="${g.id}:${esc(o.v)}" aria-pressed="${on}" style="${style}" ${!n && !on ? 'disabled' : ''}>
+    ${g.swatch ? `<span class="dot" style="background:${o.c}"></span>` : o.icon ? `<span style="color:${on ? 'inherit' : o.c}">${o.icon}</span>` : o.c ? `<span class="dot" style="background:${o.c}"></span>` : ''}${esc(o.label)}<span class="n">${n}</span></button>`;
+}
+
+function pfGroup(g) {
+  const f = pairFilter;
+  const sel = f.sel[g.id];
+  let body;
+  if (g.custom) {
+    // Team skill themes: type-ahead over every theme in the pool, picked themes must all match
+    const base = filteredPairs();
+    const counts = {};
+    for (const p of base) for (const t of themesOf(p)) counts[t] = (counts[t] || 0) + 1;
+    const all = [...new Set(pfPool().flatMap(themesOf))].sort();
+    const top = Object.entries(counts).filter(([t]) => !sel.has(t)).sort((a, b) => b[1] - a[1]).slice(0, 8);
+    body = `
+      <input class="pf-theme-input" id="pf-theme" list="pf-theme-list" placeholder="Gõ tên team skill…" autocomplete="off">
+      <datalist id="pf-theme-list">${all.map(t => `<option value="${esc(t)}">`).join('')}</datalist>
+      <div class="pf-opts">${[...sel].map(t => pfOptionChip(g, { v: t, label: t }, counts[t] || 0)).join('')}</div>
+      ${top.length ? `<div class="pf-hint">Phổ biến trong kết quả:</div><div class="pf-opts">${top.map(([t, n]) => pfOptionChip(g, { v: t, label: t }, n)).join('')}</div>` : ''}`;
+  } else {
+    const base = g.mode === 'or' ? filteredPairs(g) : filteredPairs();
+    const opts = g.options(pfPool());
+    body = `<div class="pf-opts ${g.swatch ? 'swatches' : ''}">${opts.map(o => pfOptionChip(g, o, base.filter(p => g.test(p, o.v)).length)).join('')}</div>`;
+    if (g.id === 'role') body += `<label class="pf-check" ${tip('EX Role', 'Pair có EX Role trùng role đang chọn cũng được tính')}><input type="checkbox" id="pf-ex" ${f.exAsRole ? 'checked' : ''}> Tính cả EX Role</label>`;
+    if (g.id === 'src') body += `<label class="pf-check" ${tip('Grid Expansion', 'Hiện cả các pair cũ chỉ được mở rộng Sync Grid')}><input type="checkbox" id="pf-expand" ${f.expansions ? 'checked' : ''}> Hiện Grid expansion</label>`;
+  }
+  return `
+    <details class="pf-group" data-pf-group="${g.id}" ${f.collapsed.has(g.id) && !sel.size ? '' : 'open'}>
+      <summary><span>${esc(g.label)}</span>${g.mode === 'and' ? '<small>khớp tất cả</small>' : ''}
+        ${sel.size ? `<b class="pf-badge">${sel.size}</b><button class="pf-clear-group" data-pf-clear="${g.id}" ${tip('Bỏ lọc ' + g.label)}>✕</button>` : ''}</summary>
+      ${body}
+    </details>`;
+}
+
 function drawPairFilters() {
   const f = pairFilter;
-  const pool = f.expansions ? D.pairs : PAIRS;
-  const typeN = t => pool.filter(p => p.type === t).length;
-  $('#pair-filters').innerHTML = `
-    <div class="filter-line">
-      <label class="search">🔍<input id="pf-q" type="search" placeholder="Tìm trainer, pokémon, team skill…" value="${esc(f.q)}"></label>
-      <select class="select" id="pf-sort" aria-label="Sort">
-        ${[['new', 'Mới nhất'], ['no', 'Số No.'], ['name', 'Tên A→Z'], ['type', 'Theo Type'], ['grid', 'Grid lớn nhất']]
-          .map(([v, l]) => `<option value="${v}" ${f.sort === v ? 'selected' : ''}>${l}</option>`).join('')}
-      </select>
+  const n = pfActiveCount();
+  $('#pf-side').innerHTML = `
+    <div class="pf-side-head">
+      <b>Bộ lọc</b>
+      <button class="chip pf-reset" data-pf-reset ${n ? '' : 'disabled'}>✕ Xoá tất cả${n ? ` (${n})` : ''}</button>
     </div>
-    <div class="filter-line">
-      <span class="lab">Role</span>
-      <button class="chip ${f.role === 'all' ? 'on' : ''}" data-pf="role:all">Tất cả</button>
-      ${Object.entries(ROLES).map(([r, v]) => `<button class="chip ${f.role === r ? 'on' : ''}" data-pf="role:${r}"><span style="color:${f.role === r ? 'inherit' : v.c}">${v.i}</span> ${r}</button>`).join('')}
-      <label class="chip" ${tip('EX Role', 'Tính cả pair có EX Role trùng role đang lọc')}><input type="checkbox" id="pf-ex" ${f.exRole ? 'checked' : ''}> + EX Role</label>
-    </div>
-    <div class="filter-line">
-      <span class="lab">Type</span>
-      ${TYPES.filter(typeN).map(t => `<button class="chip type-chip ${f.types.has(t) ? 'on' : ''}" data-pf="type:${t}" style="${f.types.has(t) ? `background:${TYPE_COLORS[t]}` : ''}"><span class="dot" style="background:${TYPE_COLORS[t]}"></span>${t}<span class="n">${typeN(t)}</span></button>`).join('')}
-      ${f.types.size ? '<button class="chip" data-pf="type:clear">✕ bỏ lọc</button>' : ''}
-    </div>
-    <div class="filter-line">
-      <span class="lab">Rarity</span>
-      ${['all', '5', '4', '3'].map(r => `<button class="chip ${f.rarity === r ? 'on' : ''}" data-pf="rarity:${r}">${r === 'all' ? 'Tất cả' : r + '★'}</button>`).join('')}
-      <span class="lab" style="margin-left:12px">Version</span>
-      ${D.versions.map(v => `<button class="chip ${f.versions.has(v) ? 'on' : ''}" data-pf="ver:${v}">v${v}</button>`).join('')}
-      ${D.sources?.pomatools ? `<button class="chip ${f.versions.has('DB') ? 'on' : ''}" data-pf="ver:DB" ${tip('Pair cũ', 'Pair ra trước các bản datamine, lấy từ PoMaTools')}>Pair cũ (DB)</button>` : ''}
-      <label class="chip" ${tip('Grid Expansion', 'Hiện cả các pair cũ chỉ được mở rộng Sync Grid')}><input type="checkbox" id="pf-expand" ${f.expansions ? 'checked' : ''}> Grid expansion</label>
-      <span class="result-count" id="pf-count"></span>
-    </div>`;
+    ${PF_GROUPS.map(pfGroup).join('')}`;
+  $('#pf-badge').textContent = n || '';
+  // One removable chip per active choice
+  const label = (g, v) => g.options?.(pfPool()).find(o => o.v === v)?.label || v;
+  const chips = [
+    ...(f.q.trim() ? [`<button class="chip pf-tag" data-pf-q-clear>🔍 “${esc(f.q.trim())}” <b>✕</b></button>`] : []),
+    ...PF_GROUPS.flatMap(g => [...f.sel[g.id]].map(v =>
+      `<button class="chip pf-tag" data-pf="${g.id}:${esc(v)}"><small>${esc(g.label)}</small> ${esc(label(g, v))} <b>✕</b></button>`)),
+    ...(f.expansions ? ['<button class="chip pf-tag" data-pf-expand-off><small>Nguồn</small> Grid expansion <b>✕</b></button>'] : []),
+  ];
+  $('#pf-active').innerHTML = chips.length ? chips.join('') + '<button class="pf-reset-link" data-pf-reset>Xoá tất cả</button>' : '';
 }
 
 function drawPairGrid() {
   const list = filteredPairs();
-  $('#pf-count').textContent = `${list.length} kết quả`;
+  $('#pf-count').innerHTML = `<b>${list.length}</b> / ${pfPool().length} pair`;
   $('#pair-grid').innerHTML = list.length
     ? list.slice(0, pairFilter.limit).map(pairCard).join('') +
       (list.length > pairFilter.limit ? `<button class="chip more-btn" data-more>Hiện thêm (${list.length - pairFilter.limit} còn lại) ▼</button>` : '')
-    : `<div class="empty" style="grid-column:1/-1">${img(PLACEHOLDER)}Không có sync pair nào khớp bộ lọc.</div>`;
+    : `<div class="empty" style="grid-column:1/-1">${img(PLACEHOLDER)}Không có sync pair nào khớp bộ lọc.
+        <button class="chip" data-pf-reset style="margin-top:10px">✕ Xoá tất cả bộ lọc</button></div>`;
 }
+const pfRefresh = () => { pairFilter.limit = PAGE; drawPairFilters(); drawPairGrid(); };
 
 function pairCard(p) {
   const isNew = p.release && toDate(p.release) > NOW;
@@ -425,11 +557,11 @@ function pairCard(p) {
       ${p.isPoma ? '' : `<span class="no">No.${p.number}</span>`}
       <span class="ver tag sm accent">${verLabel(p)}</span>
       ${isNew ? '<span class="newflag">SOON</span>' : ''}
-      ${p.altSprites?.length ? `<span class="formflag">${p.altSprites.some(a => a.kind === 'mega') ? 'MEGA' : 'FORM'}</span>` : ''}
+      ${p.mechanics?.length ? `<span class="mechflags">${p.mechanics.map(mechFlag).join('')}</span>` : ''}
       ${p.shiny ? '<span class="shinyflag" aria-label="Shiny">✨</span>' : ''}
     </div>
     <div class="pc-body">
-      <div class="pc-name">${esc(p.trainer)}<small>& ${esc(p.pokemon)}${p.shiny ? ' ✨' : ''}${p.form ? ` · ${esc(p.form)}` : ''}</small></div>
+      <div class="pc-name">${esc(p.trainer)}<small>& ${esc(p.pokemon)}${p.shiny ? ' ✨' : ''}${formText(p.form) ? ` · ${esc(formText(p.form))}` : ''}</small></div>
       <div class="pc-badges">
         ${p.gridOnly ? '<span class="tag sm">Grid Expansion</span>' : ''}
         ${roleBadge(p.role, { sm: true })}${p.exRole ? roleBadge(p.exRole, { ex: true, sm: true }) : ''}
@@ -444,29 +576,56 @@ function pairCard(p) {
 }
 
 document.addEventListener('click', e => {
-  const b = e.target.closest('[data-pf]');
-  if (!b) return;
-  const [k, v] = b.dataset.pf.split(':');
-  const f = pairFilter;
-  if (k === 'role') f.role = v;
-  if (k === 'type') v === 'clear' ? f.types.clear() : (f.types.has(v) ? f.types.delete(v) : f.types.add(v));
-  if (k === 'rarity') f.rarity = v;
-  if (k === 'ver') f.versions.has(v) ? f.versions.delete(v) : f.versions.add(v);
-  f.limit = PAGE;
-  drawPairFilters(); drawPairGrid();
+  const t = e.target;
+  const opt = t.closest('[data-pf]');
+  if (opt) {
+    const i = opt.dataset.pf.indexOf(':');
+    const sel = pairFilter.sel[opt.dataset.pf.slice(0, i)];
+    const v = opt.dataset.pf.slice(i + 1);
+    sel.has(v) ? sel.delete(v) : sel.add(v);
+    return pfRefresh();
+  }
+  const clear = t.closest('[data-pf-clear]');
+  if (clear) { e.preventDefault(); pairFilter.sel[clear.dataset.pfClear].clear(); return pfRefresh(); }
+  if (t.closest('[data-pf-reset]')) {
+    resetPairFilter();
+    const q = $('#pf-q');
+    if (q) q.value = '';
+    return pfRefresh();
+  }
+  if (t.closest('[data-pf-q-clear]')) { pairFilter.q = ''; $('#pf-q').value = ''; return pfRefresh(); }
+  if (t.closest('[data-pf-expand-off]')) { pairFilter.expansions = false; return pfRefresh(); }
+  if (t.closest('[data-pf-toggle]')) {
+    pairFilter.open = !pairFilter.open;
+    $('#pf-layout').classList.toggle('open', pairFilter.open);
+    t.closest('[data-pf-toggle]').setAttribute('aria-expanded', pairFilter.open);
+    return;
+  }
+  if (t.closest('[data-more]')) { pairFilter.limit += PAGE; drawPairGrid(); }
 });
+// Remember which groups are folded across redraws (toggle doesn't bubble → capture)
+document.addEventListener('toggle', e => {
+  const g = e.target.dataset?.pfGroup;
+  if (!g) return;
+  e.target.open ? pairFilter.collapsed.delete(g) : pairFilter.collapsed.add(g);
+}, true);
+let pfTimer;
 document.addEventListener('input', e => {
-  if (e.target.id === 'pf-q') { pairFilter.q = e.target.value; pairFilter.limit = PAGE; drawPairGrid(); }
-});
-document.addEventListener('click', e => {
-  if (!e.target.closest('[data-more]')) return;
-  pairFilter.limit += PAGE;
-  drawPairGrid();
+  if (e.target.id !== 'pf-q') return;
+  pairFilter.q = e.target.value;
+  clearTimeout(pfTimer);
+  pfTimer = setTimeout(pfRefresh, 120); // keep typing smooth; the search box itself is never redrawn
 });
 document.addEventListener('change', e => {
-  if (e.target.id === 'pf-sort') { pairFilter.sort = e.target.value; drawPairGrid(); }
-  if (e.target.id === 'pf-ex') { pairFilter.exRole = e.target.checked; drawPairGrid(); }
-  if (e.target.id === 'pf-expand') { pairFilter.expansions = e.target.checked; drawPairFilters(); drawPairGrid(); }
+  const id = e.target.id;
+  if (id === 'pf-sort') { pairFilter.sort = e.target.value; drawPairGrid(); }
+  if (id === 'pf-ex') { pairFilter.exAsRole = e.target.checked; pfRefresh(); }
+  if (id === 'pf-expand') { pairFilter.expansions = e.target.checked; pfRefresh(); }
+  if (id === 'pf-theme') {
+    const v = e.target.value.trim();
+    const theme = [...new Set(pfPool().flatMap(themesOf))].find(t => t.toLowerCase() === v.toLowerCase());
+    if (theme) { pairFilter.sel.theme.add(theme); pfRefresh(); }
+  }
 });
 
 // ═══════════════════════════════════════════════════════════════
@@ -497,15 +656,15 @@ function renderPair(id) {
       </div>
       ${p.altSprites?.length ? `<div class="form-strip" role="group" aria-label="Dạng Pokémon">
         ${[{ kind: 'base', label: p.pokemon + (p.shiny ? ' ✨' : ''), sprite: p.pokeSprite }, ...p.altSprites].map((f, i) => `
-          <button class="form-btn ${i ? '' : 'on'}" data-form-src="${esc(f.sprite)}" data-form-idx="${i}" ${tip(f.label, f.kind === 'mega' ? 'Mega / Primal' : f.kind === 'form' ? 'Đổi form trong trận' : 'Dạng thường')}>
-            ${img(f.sprite)}<span>${f.kind === 'mega' ? 'MEGA' : f.kind === 'form' ? 'FORM' : 'BASE'}</span>
+          <button class="form-btn k-${f.kind} ${i ? '' : 'on'}" style="--mc:${mechOf(f).c}" data-form-src="${esc(f.sprite)}" data-form-idx="${i}" ${tip(f.label, mechOf(f).name)}>
+            ${img(f.sprite)}<span>${mechOf(f).short}</span>
           </button>`).join('')}
       </div>` : ''}
     </div>
     <div class="dh-info">
-      <div class="dh-badges" style="margin-bottom:8px">${p.source === 'pomatools' && !(p.versions || []).length ? '' : `<span class="tag sm">No. ${p.number}</span>`}${(p.versions || []).map(v => `<span class="tag sm accent">v${v}</span>`).join('')}${p.source === 'pomatools' ? '<span class="tag sm" title="Nguồn: PoMaTools">📚 PoMaTools</span>' : ''}${p.exColor ? '<span class="tag sm">👕 EX Color</span>' : ''}${p.shiny ? '<span class="tag sm shiny-tag">✨ Shiny</span>' : ''}${p.teraType ? `<span class="tag sm tera-tag" style="--tt:${TYPE_COLORS[p.teraType] || '#888'}">💎 Tera ${esc(p.teraType)}</span>` : ''}</div>
+      <div class="dh-badges" style="margin-bottom:8px">${p.source === 'pomatools' && !(p.versions || []).length ? '' : `<span class="tag sm">No. ${p.number}</span>`}${(p.versions || []).map(v => `<span class="tag sm accent">v${v}</span>`).join('')}${p.source === 'pomatools' ? '<span class="tag sm" title="Nguồn: PoMaTools">📚 PoMaTools</span>' : ''}${p.category ? `<span class="tag sm cat-tag" style="--cc:${pairCat(p).c}">${esc(pairCat(p).label)}</span>` : ''}${p.exColor ? '<span class="tag sm">👕 EX Color</span>' : ''}${p.shiny ? '<span class="tag sm shiny-tag">✨ Shiny</span>' : ''}${p.teraType ? `<span class="tag sm tera-tag" style="--tt:${TYPE_COLORS[p.teraType] || '#888'}">💎 Tera ${esc(p.teraType)}</span>` : ''}${(p.mechanics || []).filter(k => k !== 'tera' || !p.teraType).map(mechFlag).join('')}</div>
       <h1>${esc(p.trainer)} & ${esc(p.pokemon)}${p.shiny ? ' ✨' : ''}</h1>
-      <div class="sub">${[p.gender, p.form].filter(Boolean).map(esc).join(' · ')}</div>
+      <div class="sub">${[p.gender, formText(p.form)].filter(Boolean).map(esc).join(' · ')}</div>
       <div class="dh-badges">
         ${p.gridOnly ? '<span class="tag">Grid Expansion</span>' : ''}
         ${roleBadge(p.role)}${p.exRole ? roleBadge(p.exRole, { ex: true }) : ''}
@@ -534,7 +693,7 @@ function renderPair(id) {
 
 function pairInfo(p) {
   const info = [
-    ['Expedition 🤝', p.expedition], ['Cách nhận', p.method], ['Item Exchange', p.itemExchange],
+    ['Loại pair', pairCat(p).label], ['Expedition 🤝', p.expedition], ['Cách nhận (datamine)', p.method], ['Item Exchange', p.itemExchange],
     ...Object.entries(p.dates || {}).map(([k, v]) => [`${k} available`, fmtDate(v)]),
   ].filter(([, v]) => v);
   return `
@@ -559,24 +718,80 @@ function pairInfo(p) {
     </div>
   </div>
 
-  <div class="section">
-    <h2 class="section-title">Moves</h2>
-    <div class="moves">${p.moves.map(m => moveCard(m)).join('')}</div>
-    <div class="moves special">
-      ${p.syncMove ? moveCard(p.syncMove, 'sync') : ''}
-      ${(p.teraMoves || []).map(m => moveCard(m, 'tera')).join('')}
-      ${(p.megaMoves || []).map(m => moveCard(m, 'mega')).join('')}
-    </div>
-  </div>
+  <div class="section" id="moves-panel">${movesPanel(p)}</div>
+  <div class="section" id="passives-panel">${passivesPanel(p)}</div>`;
+}
 
-  ${p.superPassive || p.passives.length || p.teraPassives?.length ? `<div class="section">
-    <h2 class="section-title">Passives</h2>
+// What the Pokémon fights with in the form picked under the sprite (BASE / MEGA / TERA / DMAX / FORM).
+// Alt forms store moves / passives slot by slot: null = same as the base form.
+function formView(p) {
+  const alt = detail.form ? p.altSprites?.[detail.form - 1] : null;
+  const kind = alt?.kind || 'base';
+  const has = k => (p.altSprites || []).some(a => a.kind === k);
+  const overlay = (base, over) => !over ? base
+    : [...base.map((b, i) => over[i] ? { ...over[i], changed: true } : b), ...over.slice(base.length).filter(Boolean).map(x => ({ ...x, changed: true }))];
+  let moves = overlay(p.moves || [], alt?.moves);
+  let syncMove = alt?.syncMove ? { ...alt.syncMove, changed: true } : p.syncMove;
+  let extra = [];
+  if (kind === 'dynamax' || kind === 'gigantamax') {
+    // Each Max Move takes the slot of the move it comes from; the Sync Move isn't part of this form
+    moves = [...moves];
+    for (const mx of alt.maxMoves || []) {
+      const at = mx.fromSlot ? moves.findIndex(m => m.slot === mx.fromSlot) : -1;
+      if (at > -1) moves[at] = { ...mx, changed: true };
+      else extra.push({ ...mx, changed: true });
+    }
+    syncMove = null;
+  }
+  if (kind === 'tera') extra = (alt.teraMoves?.length ? alt.teraMoves : p.teraMoves || []).map(m => ({ ...m, changed: true }));
+  if (kind === 'base' && !has('tera')) extra = p.teraMoves || [];
+  if (alt?.extraMoves) extra = alt.extraMoves.map(m => ({ ...m, changed: true }));
+  if (kind === 'base' && !has('mega')) extra = [...extra, ...(p.megaMoves || [])];
+
+  let passives = overlay(p.passives || [], alt?.passives);
+  let extraPassives = [];
+  // Datamine "📌 Tera Details" list Tera passives by slot number
+  const dmTera = (p.teraPassives || []).filter(x => typeof x.slot === 'number');
+  if (kind === 'tera' && !alt.passives && dmTera.length) {
+    passives = passives.map(x => { const t = dmTera.find(d => d.slot === x.slot); return t ? { ...t, changed: true } : x; });
+    extraPassives = dmTera.filter(d => !passives.some(x => x.slot === d.slot)).map(x => ({ ...x, changed: true }));
+  }
+  if (kind === 'base' && !has('tera')) extraPassives = p.teraPassives || [];
+  return { alt, kind, moves, syncMove, extra, passives, extraPassives };
+}
+
+function mechNote(v) {
+  if (!v.alt) return '';
+  const m = mechOf(v.alt);
+  return `<div class="mech-note" style="--mc:${m.c}"><b>${esc(m.short)}</b><span>${esc(v.alt.label)}${v.alt.teraType && !v.alt.label.includes(v.alt.teraType) ? ` · Tera ${esc(v.alt.teraType)}` : ''}</span><small>${esc(m.note || '')}</small></div>`;
+}
+
+function movesPanel(p) {
+  const v = formView(p);
+  const specialKind = m => m.slot === 'Max' ? 'max' : m.slot === 'Tera' ? 'tera' : m.slot === 'Mega' || v.kind === 'mega' ? 'mega' : '';
+  // Moves that only exist in the picked form wear that form's chip + frame
+  const mech = m => m.changed && v.alt ? { ...mechOf(v.alt), tt: TYPE_COLORS[v.alt.teraType] } : null;
+  return `
+    <h2 class="section-title">Moves${v.alt ? ` <span class="count">${esc(mechOf(v.alt).short)}</span>` : ''}</h2>
+    ${mechNote(v)}
+    <div class="moves">${v.moves.map(m => moveCard(m, m.slot === 'Max' ? 'max' : '', mech(m))).join('')}</div>
+    ${v.syncMove || v.extra.length ? `<div class="moves special">
+      ${v.syncMove ? moveCard(v.syncMove, 'sync', mech(v.syncMove)) : ''}
+      ${v.extra.map(m => moveCard(m, specialKind(m), mech(m))).join('')}
+    </div>` : ''}`;
+}
+
+function passivesPanel(p) {
+  const v = formView(p);
+  if (!p.superPassive && !v.passives.length && !v.extraPassives.length) return '';
+  const mech = x => x.changed && v.alt ? { ...mechOf(v.alt), tt: TYPE_COLORS[v.alt.teraType] } : null;
+  return `
+    <h2 class="section-title">Passives${v.alt ? ` <span class="count">${esc(mechOf(v.alt).short)}</span>` : ''}</h2>
     <div class="passives">
       ${p.superPassive ? passiveCard({ ...p.superPassive, label: '🌅 Superawakened' }, 'super') : ''}
-      ${p.passives.map(x => passiveCard({ ...x, label: `Passive ${x.slot}${x.master ? ' 🏅' : ''}` })).join('')}
-      ${(p.teraPassives || []).map(x => passiveCard({ ...x, label: typeof x.slot === 'number' ? `💎 Tera Passive ${x.slot}` : x.slot === 'Form' ? '🔄 Form Passive' : '💎 Tera Passive' }, 'tera')).join('')}
-    </div>
-  </div>` : ''}`;
+      ${v.passives.map(x => passiveCard({ ...x, label: `Passive ${x.slot}${x.master ? ' 🏅' : ''}` }, '', mech(x))).join('')}
+      ${v.extraPassives.map(x => passiveCard({ ...x, label: typeof x.slot === 'number' ? `💎 Tera Passive ${x.slot}` : '💎 Tera Passive' }, 'tera', mech(x))).join('')}
+    </div>`;
 }
 
 // Stats follow the form picked under the sprite (BASE / MEGA / FORM)
@@ -594,7 +809,7 @@ function statsPanel(p) {
   return `
     <div class="stat-tabs">
       ${levels.map(l => `<button class="chip ${l === lv ? 'on' : ''}" data-lv="${l}">Lv. ${l}</button>`).join('')}
-      ${alt ? `<span class="tag stat-form">${alt.kind === 'mega' ? 'MEGA' : 'FORM'} · ${esc(alt.label)}</span>` : ''}
+      ${alt ? `<span class="tag stat-form">${esc(mechOf(alt).short)} · ${esc(alt.label)}</span>` : ''}
     </div>
     <div class="stat-bars">
       ${Object.entries(st).map(([k, v]) => {
@@ -612,14 +827,22 @@ function statsPanel(p) {
     <div class="stat-total">Tổng: <b>${fmtN(total)}</b> · thanh so với chỉ số cao nhất của mọi pair ở Lv. ${lv}</div>`;
 }
 
-// Swap the big Pokémon sprite between base / Mega / form
+// Swap the big Pokémon sprite between base / Mega / Tera / Dynamax / form — stats, moves and passives follow
 document.addEventListener('click', e => {
   const b = e.target.closest('[data-form-src]');
   if (!b) return;
-  $('#dh-poke').src = b.dataset.formSrc;
+  const p = pairById(location.hash.split('/')[2]);
   detail.form = +b.dataset.formIdx;
-  const sp = $('#stats-panel');
-  if (sp) sp.innerHTML = statsPanel(pairById(location.hash.split('/')[2]));
+  const alt = detail.form ? p.altSprites?.[detail.form - 1] : null;
+  const poke = $('#dh-poke');
+  poke.src = b.dataset.formSrc;
+  poke.className = poke.className.replace(/\s*fx-\w+/g, '') + (alt ? ` fx-${alt.kind}` : '');
+  poke.style.setProperty('--tt', TYPE_COLORS[alt?.teraType] || '#7fe6f2');
+  for (const [sel, fn] of [['#stats-panel', statsPanel], ['#moves-panel', movesPanel], ['#passives-panel', passivesPanel]]) {
+    const el = $(sel);
+    if (el) el.innerHTML = fn(p);
+  }
+  markClamped();
   $$('.form-btn').forEach(x => x.classList.toggle('on', x === b));
 });
 
@@ -636,9 +859,16 @@ const powerRange = pw => {
   return m ? `${m[1]} → ${m[2]}` : (pw && pw !== '--' ? pw : '—');
 };
 
-function moveCard(m, kind = '') {
+// Chip + frame for a move / passive that only exists in the picked form (MEGA, TERA, D-MAX, G-MAX, FORM…)
+const mechChip = (mech, what) => mech ? `<span class="mech-chip" ${tip(mech.name, `${what} chỉ có ở dạng ${mech.name}`)}>${esc(mech.short)}</span>` : '';
+const mechAttrs = mech => mech ? { cls: `mech mech-${mech.key}`, style: `;--mc:${mech.c};--tt:${mech.tt || '#7fe6f2'}` } : { cls: '', style: '' };
+
+function moveCard(m, kind = '', mech = null) {
   const typed = !!TYPE_COLORS[m.type];
-  const slot = kind === 'sync' ? 'SYNC' : kind === 'tera' ? 'TERA' : kind === 'mega' ? 'MEGA' : m.user === 'Trainer' ? 'TM' : `M${m.slot}`;
+  // A Max Move keeps the slot of the move it replaces; its D-MAX / G-MAX chip says the rest
+  const slot = kind === 'sync' ? 'SYNC' : kind === 'tera' ? 'TERA' : kind === 'mega' ? 'MEGA'
+    : kind === 'max' ? (m.fromSlot ? `M${m.fromSlot}` : 'MAX') : m.user === 'Trainer' ? 'TM' : `M${m.slot}`;
+  const mc = mechAttrs(mech);
   const gauge = /^\d+$/.test(m.gauge) ? `<span class="gauge">${'<i></i>'.repeat(+m.gauge)}</span>` : '<b>—</b>';
   const catIcon = { Physical: '💥', Special: '🌀', Status: '✨' }[m.category] || '';
   const extra = [
@@ -649,11 +879,12 @@ function moveCard(m, kind = '') {
   // B-moves unlock mid-battle ("Activation Condition: …") — framed in rainbow like the in-game card
   const bmove = /Activation Condition/i.test(m.description);
   return `
-  <div class="move ${kind} ${bmove ? 'bmove' : ''}" style="--tc:${typed ? TYPE_COLORS[m.type] : 'var(--panel-3)'}">
+  <div class="move ${kind} ${bmove ? 'bmove' : ''} ${mc.cls}" style="--tc:${typed ? TYPE_COLORS[m.type] : 'var(--panel-3)'}${mc.style}">
     <div class="mv-top ${typed ? '' : 'plain'}">
       <span class="move-slot">${slot}</span>
-      <span class="move-name">${esc(m.name)}</span>
+      <span class="move-name">${esc(m.name)}${m.from ? `<small class="mv-from">← ${esc(m.from)}</small>` : ''}</span>
       ${bmove ? `<span class="bm-badge" ${tip('B-Move', 'Chỉ dùng được khi thoả Activation Condition')}>B-MOVE</span>` : ''}
+      ${mech && mech.short !== slot ? mechChip(mech, 'Move này') : ''}
       <span class="mv-type">${typed ? esc(m.type) : ''}</span>
     </div>
     <div class="mv-stats">
@@ -683,10 +914,11 @@ document.addEventListener('click', e => {
   b.textContent = open ? 'Xem thêm ▼' : 'Thu gọn ▲';
 });
 
-function passiveCard(x, kind = '') {
+function passiveCard(x, kind = '', mech = null) {
+  const mc = mechAttrs(mech);
   return `
-  <div class="passive ${kind}">
-    <div class="pn"><span class="tag sm ${kind === 'super' ? 'accent' : ''}">${esc(x.label)}</span>${esc(x.name)}</div>
+  <div class="passive ${kind} ${mc.cls}" style="${mc.style.slice(1)}">
+    <div class="pn"><span class="tag sm ${kind === 'super' ? 'accent' : ''}">${esc(x.label)}</span>${esc(x.name)}${mechChip(mech, 'Passive này')}</div>
     <div class="prose" style="margin-top:4px">${esc(x.description)}</div>
   </div>`;
 }

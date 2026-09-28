@@ -40,7 +40,7 @@ Không có dependency npm. Chỉ cần Node ≥ 18 (dùng `fetch` có sẵn) đ�
   builtAt, versions: ['2.71', ...],
   pairs: [{
     key, number, trainer, pokemon, gender, shiny, form, version, versions[],
-    role, exRole, type, weakness, rarity, expedition, method, itemExchange, collectInfo, exColor,
+    role, exRole, type, weakness, rarity, expedition, method, category, itemExchange, collectInfo, exColor,
     teamSkills[], dates: { 'Sync Pair', 'EX Effect', 'EX Role', 'Superawakened' },
     moves[{ slot, name, type, category, user, description, power, accuracy, gauge, target, effectTag, maxUses }],
     syncMove, teraMoves[], megaMoves[],
@@ -48,7 +48,10 @@ Không có dependency npm. Chỉ cần Node ≥ 18 (dùng `fetch` có sẵn) đ�
     stats: { '1': {HP, Attack, ...}, '140', '150', '200' }, megaStats,
     grid: [{ n, q, r, s, energy, orbs, req[], move, color, title, description, version }],
     gridOnly?, gridVersion?, pokeSprite, trainerSprite,
-    altForms[{ kind: 'mega'|'form', pokemon, form, shiny, scale, stats }], altSprites[{ kind, label, sprite, stats }], teraType, actorId, pomaId,
+    altForms[{ kind, pokemon, form, label?, shiny, scale, stats, moves?, syncMove?, passives?, maxMoves?, teraType?, teraMoves? }],
+    altSprites[{ kind, label, sprite, stats, moves?, syncMove?, passives?, maxMoves?, teraType?, teraMoves?, extraMoves? }],
+    mechanics[],  // tập con của 'mega' | 'tera' | 'dynamax' | 'gigantamax' | 'form'
+    teraType, actorId, pomaId,
   }],
   scouts: [{ id, month, version, title, tags[], blurb, scoutType, points,
              rateUp[{ raw, trainer, pokemon, ..., pokeSprite, trainerSprite }],
@@ -72,12 +75,12 @@ Không có dependency npm. Chỉ cần Node ≥ 18 (dùng `fetch` có sẵn) đ�
 | Helper | `esc` (luôn escape text từ data!), `img` (có fallback Poké Ball), `typeBadge`, `roleBadge`, `tip` (tooltip), `fmtDate` |
 | Router | `routes` + `route()`; hash `#/`, `#/pairs`, `#/pair/<id>`, `#/scouts[/<eventId>]`, `#/gym[/<index>]`. Mỗi route trả HTML string; `afterRender[name]` chạy sau khi gắn DOM |
 | Home | `renderHome`, `statTile`, `scoutMiniList`, `gymTeaser` |
-| Sync Pairs | `pairFilter` state (có `limit`, hiện 120 thẻ/lần), `filteredPairs`, `drawPairFilters`, `drawPairGrid`, `pairCard` |
+| Sync Pairs | `PF_GROUPS` (định nghĩa bộ lọc), `pairFilter` state, `filteredPairs(skip)`, `pfGroup`, `drawPairFilters`, `drawPairGrid`, `pairCard` — xem mục **Bộ lọc Sync Pairs** |
 | Pair detail | `loadPairDetail`, `renderPair`, `pairInfo`, `statsPanel`, `moveCard` (+ `markClamped`), `passiveCard`, `gridView` + `drawGrid` (canvas pixel), `gridPanel` |
 | Scouts | `scoutFilter`, `drawScouts`, `monthBlock`, `gantt`, `scoutCard`, `pityInfo`, `scoutCat`, `scoutStatus` |
 | Gym | `renderGym`, `ruleClass`, `stageShort`, `hpChart`, `stageDetail`, `gymStage` state |
 
-Sự kiện dùng **event delegation** trên `document` với `data-*` attribute (`data-pf`, `data-sf`, `data-lv`, `data-gc`, `data-cell`, `data-stage`, `data-jump`, `data-set-filter`, `data-theme-id`). Khi thêm nút mới, thêm attribute + nhánh xử lý tương ứng thay vì gắn listener trực tiếp.
+Sự kiện dùng **event delegation** trên `document` với `data-*` attribute (`data-pf`, `data-pf-clear`, `data-pf-reset`, `data-pf-toggle`, `data-sf`, `data-lv`, `data-gc`, `data-cell`, `data-stage`, `data-jump`, `data-set-filter`, `data-theme-id`). Khi thêm nút mới, thêm attribute + nhánh xử lý tương ứng thay vì gắn listener trực tiếp.
 
 Sync Grid vẽ bằng **canvas pixel-art** (`drawGrid`), không phải SVG:
 - Mỗi ô là hex pointy-top 14×16 px định nghĩa bằng `HEX_SPAN` (3 hàng nhọn + 10 hàng thân + 3 hàng nhọn); `HEX_MASK` phân loại pixel thành viền / vòng bevel / ruột.
@@ -86,9 +89,47 @@ Sync Grid vẽ bằng **canvas pixel-art** (`drawGrid`), không phải SVG:
 - Màu theme được đọc từ CSS variables lúc vẽ → **phải gọi lại `drawGrid()`** khi đổi theme, resize, lọc màu, chọn ô (đã nối sẵn).
 - Hover/click: bảng `owner` (Int16Array) ánh xạ từng pixel → chỉ số ô; `gridCellAt()` đổi toạ độ chuột sang pixel canvas.
 
-Nút BASE / MEGA / FORM dưới ảnh Pokémon đổi cả sprite lẫn chỉ số (`detail.form` → `statsPanel` lấy `altSprites[i].stats`); không còn nút Mega riêng trong phần chỉ số. Một dạng được giữ nếu sprite **hoặc** chỉ số khác dạng gốc.
+Nút BASE / MEGA / TERA / DMAX / G-MAX (E-MAX cho Eternatus) / FORM (gồm cả Primal, Zygarde Complete, Ultra Necrozma) dưới ảnh Pokémon (`MECHANICS` trong `app.js`) đổi sprite, chỉ số, **moves và passives** (`detail.form` → `statsPanel`, `movesPanel`, `passivesPanel`, đều đọc qua `formView(p)`):
+- `altSprites[i].moves` / `.passives` lưu **theo slot**: `null` = giống dạng thường, còn lại là move/passive thay vào slot đó (mang chip của dạng đó — MEGA, TERA, D-MAX, G-MAX, E-MAX, FORM — và khung viền riêng `.mech-<kind>` trong `styles.css`). Ví dụ Deoxys: mỗi forme có bộ move + passive riêng.
+- Dynamax / Gigantamax: `maxMoves[]` mỗi move có `from` (tên move gốc) và `fromSlot` → Max Move thế chỗ đúng slot của move gốc; Sync Move ẩn (dữ liệu dạng Dynamax không có). Gigantamax dùng sprite `<tên>-gmax` (Urshifu Rapid Strike: `urshifu-rapidstrikegmax`, Eternatus: `eternatus-eternamax`); Dynamax thường giữ sprite gốc, trang thêm viền đỏ (`.fx-dynamax`).
+- Tera: `teraMoves` hiện ở hàng đặc biệt, passive Tera thay theo slot; sprite Terastal riêng khi Showdown có (Ogerpon `-<mask>tera`, Terapagos `-stellar`).
+- `extraMoves`: Mega Moves của datamine (pair chỉ có trong datamine).
+
+Một dạng được giữ nếu sprite, chỉ số, move hoặc passive khác dạng gốc, hoặc là Tera / Dynamax. `mechanics[]` (có trong `data.js`) sinh cờ trên thẻ pair và bộ lọc **Mechanic** ở trang Sync Pairs. `data.js` chỉ giữ `altSprites` rút gọn (kind, label, sprite, stats); move/passive theo dạng nằm trong `data/pairs/<id>.js`.
 
 B-move: move có `Activation Condition` trong mô tả → class `.bmove`: viền cầu vồng pastel tĩnh chia dải pixel quanh `.mv-top` + góc tam giác bậc thang bên phải (theo mẫu infographic LostMode) + badge `B-MOVE`.
+
+## Bộ lọc Sync Pairs
+
+Trang `#/pairs` gồm sidebar bộ lọc (`.pf-side`, sticky) + thanh công cụ (tìm kiếm, sắp xếp) + hàng chip đang lọc + lưới thẻ. Dưới 900px sidebar ẩn sau nút **☰ Bộ lọc (n)**.
+
+Mỗi nhóm lọc là một phần tử trong `PF_GROUPS`:
+
+```js
+{ id, label, mode: 'or' | 'and', swatch?, custom?,
+  options: pool => [{ v, label, c?, icon? }],   // lựa chọn hiển thị
+  test: (pair, v) => boolean }                  // pair có khớp lựa chọn v không
+```
+
+| Nhóm | id | Kiểu | Ghi chú |
+|---|---|---|---|
+| Role | `role` | or | checkbox "Tính cả EX Role" (`pairFilter.exAsRole`) |
+| EX Role | `exrole` | or | có lựa chọn "Không có" |
+| Type / Weakness | `type` / `weak` | or | chip có ô màu type |
+| Rarity | `rarity` | or | |
+| Mechanic | `mech` | or | Dynamax gồm cả Gigantamax |
+| Đặc điểm | `feat` | and | Superawakened, Có EX Role, EX Color, Shiny, Sắp ra |
+| Loại pair | `cat` | or | `PAIR_CATS` theo `p.category` (Master Fair, EX Master Fair, Arc Suit, Poké Fair, EX Poké Fair, Seasonal, Special Costume, Variety, Mix, Academy, Gym, General, Chưa rõ) |
+| Năm ra mắt | `year` | or | lấy từ ngày Sync Pair |
+| Nguồn / Version | `src` | or | version datamine + "Pair cũ (DB)"; checkbox hiện Grid expansion |
+| Team Skill | `theme` | and | `custom`: ô gõ + datalist, chủ đề = team skill bỏ chữ role cuối ("Gym Leader Support" → "Gym Leader") |
+
+- Trong một nhóm `or`: khớp **bất kỳ** lựa chọn; nhóm `and`: khớp **tất cả**. Giữa các nhóm luôn là AND.
+- **Số đếm cạnh mỗi lựa chọn là faceted count**: nhóm `or` đếm trên kết quả của mọi bộ lọc *khác* (`filteredPairs(g)`), nhóm `and` đếm trên kết quả hiện tại. Lựa chọn ra 0 kết quả bị làm mờ và khoá.
+- Tìm kiếm: mọi từ phải xuất hiện trong trainer, pokémon, form, type, weakness, role, EX role, cách nhận, Tera type, team skill, mechanic (chuỗi ghép được cache ở `p._hay`). Gõ phím được debounce 120 ms; ô tìm kiếm không bị vẽ lại nên không mất focus.
+- Sắp xếp (`PF_SORTS`): mới nhất, cũ nhất, số No., tên, type, tổng chỉ số Lv.200, grid lớn nhất.
+- Xoá: ✕ trên từng chip đang lọc, ✕ ở tiêu đề nhóm (`data-pf-clear`), "Xoá tất cả" (`data-pf-reset`, giữ nguyên kiểu sắp xếp). Nhóm nào đang gập được nhớ trong `pairFilter.collapsed`.
+- Widget trang Home đặt sẵn bộ lọc bằng `data-set-filter="<groupId>:<value>"`.
 
 ## Cách mở rộng thường gặp
 
@@ -97,6 +138,10 @@ B-move: move có `Activation Condition` trong mô tả → class `.bmove`: viề
 **Luật gym mới** — sửa `ruleClass()` trả thêm `cls`/`short`, thêm class `.mcell.r-xxx` trong `styles.css`, thêm dòng vào `.matrix-legend` trong `renderGym`.
 
 **Role mới** — thêm vào `ROLES` (màu + icon); filter và biểu đồ tự cập nhật.
+
+**Bộ lọc mới** — thêm một phần tử vào `PF_GROUPS` (xem mục dưới); sidebar, số đếm, chip đang lọc và nút xoá tự có.
+
+**Loại pair mới** — thêm mã vào `CATEGORIES` (`scripts/pomatools-import.mjs`), regex vào `METHOD_CATEGORY` (`scripts/build.mjs`) nếu datamine có cách ghi riêng, và một dòng `PAIR_CATS` (nhãn + màu) trong `app.js`. Trang pair hiện loại pair ở tag màu trên hero và ô "Loại pair"; ô "Cách nhận (datamine)" là nguyên văn dòng `Method:`.
 
 **Theme mới** — thêm khối `[data-theme="id"] { --bg ... }` trong `styles.css` (copy đủ biến của theme `night`) và thêm `{ id, name, a, b }` vào `THEMES`.
 

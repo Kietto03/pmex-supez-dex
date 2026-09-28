@@ -39,10 +39,10 @@ Output mẫu:
 
 ```
 versions: 2.71, 2.72, 2.73
-pairs: 670 (grid-only: 0, from pomatools: 632, overlap 34)
+pairs: 669 (grid-only: 0, from pomatools: 631, overlap 35)
 scouts: 92, gyms: Pasio Gym Battle No. 3, Pasio Gym Battle No. 4
 missing pokemon sprites (0): none
-missing trainer sprites (6): Player, Lear, Sygna Suit Lear, Rachel, Sawyer, Looker
+missing trainer sprites (0): none
 → site/data/data.js (1039 KB)
 ```
 
@@ -52,7 +52,8 @@ Kiểm tra:
 - [ ] `grid-only` = các pair chỉ có mở rộng grid (header Grid.txt ghi `Cell 49 - 54`, không có trong Trainer.txt). Bình thường.
 - [ ] `scouts` tăng; `gyms` có gym mới nếu có file gym.
 - [ ] `overlap` (số pair có ở cả hai nguồn) không tụt mạnh — nó là dữ liệu để học nhãn target/category.
-- [ ] `missing ... sprites` — xem mục 4. 6 trainer trên là nhân vật riêng của PMEX, Showdown không có.
+- [ ] `missing ... sprites` — xem mục 4. Trainer riêng của PMEX mà Showdown không có (Lear, Rachel, Sawyer, Looker…) dùng sprite tự thêm trong `config/custom-trainer-sprites.json`.
+- [ ] Tên trainer datamine khác tên trong game/PoMaTools (vd `Player` = **Scottie**) → thêm vào `TRAINER_RENAMES` trong `scripts/build.mjs`, nếu không sẽ bị tách thành 2 pair trùng và thiếu sprite.
 
 ## 3. Soát dữ liệu đã parse
 
@@ -114,7 +115,14 @@ npm run match-outfits    # tải ảnh game (PoMaTools) + sprite Showdown, chấ
 open .cache/outfits/review.html # mỗi dòng: ảnh trong game | 4 ứng viên tốt nhất (điểm)
 ```
 
-Ảnh trong game chỉ là **chân dung** (đầu/vai), nên đối chiếu theo mũ, tóc, cổ áo, màu chủ đạo. Bảng hiện có 135 outfit đã xác minh (lần duyệt 2026-09-28, 214 pair được chấm). Các outfit mới (2025–2026), Arc Suit, nhiều bản Champion chưa có sprite tương ứng trên Showdown → dùng trang phục mặc định; nên chạy lại công cụ khi Showdown bổ sung sprite.
+Ảnh trong game chỉ là **chân dung** (đầu/vai), nên đối chiếu theo mũ, tóc, cổ áo, màu chủ đạo. Bảng hiện có **163** outfit đã xác minh (135 ở lần duyệt đầu + 28 ở lần soát lại ngày 2026-09-28).
+
+Lần soát lại liệt kê mọi pair có outfit riêng mà vẫn đang dùng sprite mặc định, rồi so ảnh game với **mọi** sprite Showdown cùng tên chưa được dùng (72 pair), theo hai bước: bảng thu nhỏ để lọc, rồi bảng phóng to 2x để chốt. Kinh nghiệm rút ra:
+- Sprite **Arc Suit** trên Showdown có hiệu ứng cánh sáng kiểu Arceus (`steven-masters5`, `cynthia-masters4`, `lance-masters2`) — dấu hiệu nhận biết nhanh.
+- Chỉ chốt khi có đặc điểm riêng khớp rõ (mũ, vương miện, kiểu tóc buộc, bảng màu). Để lại mặc định khi còn phân vân giữa nhiều sprite gần giống: Marnie (Alt.) / (Palentine's 2022), Misty (Sygna Suit / Swimsuit / Arc Suit) ↔ `misty-masters`, Iono (Sygna Suit / Fall 2024), Silver (Champion / Arc Suit) ↔ `silver-masters2`, Sygna Suit Cynthia (Aura), Lana (New Year's 2026), Lillie (Anniversary 2024), Rosa (Champion), Serena (Palentine's 2021), Hilda (Summer 2022), Sygna Suit Blue, Elio (Champion), Morty (Academy), Adaman (Palentine's 2026).
+- Các outfit 2025–2026 còn lại, phần lớn Champion và Arc Suit (Sabrina, Misty, Blue, Ethan, Leon…) chưa có sprite trên Showdown → dùng trang phục mặc định; chạy lại khi Showdown bổ sung sprite.
+
+`npm run match-outfits` tự tìm Chrome trên macOS / Windows / Linux (hoặc đặt biến `CHROME=/đường/dẫn`).
 
 Xem bảng bằng mắt; chỉ ghi vào `config/outfit-sprites.json` những cặp **nhìn thấy rõ là cùng trang phục** (điểm cao nhưng sai thì bỏ). Sau đó `npm run build`. Nếu đã có sprite cũ trong `site/assets/trainers/` thì build vẫn chọn đúng theo thứ tự ứng viên mới.
 
@@ -139,7 +147,7 @@ Mở và xem các trang: `#/`, `#/pairs`, `#/pair/<id>` của 1–2 pair mới, 
 Chụp màn hình tự động (macOS, Chrome):
 
 ```bash
-C="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+C="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"   # Windows (Git Bash): C="/c/Program Files/Google/Chrome/Application/chrome.exe"
 for h in "" pairs scouts gym; do
   "$C" --headless=new --disable-gpu --hide-scrollbars --window-size=1400,2400 \
     --virtual-time-budget=4000 --screenshot="/tmp/pmex-${h:-home}.png" "http://localhost:8765/#/$h"

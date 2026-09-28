@@ -11,6 +11,7 @@ No. 115 Sygna Suit Lysandre (Alt.) & Chi-Yu (Genderless) - Tera Type Fire
 ```
 
 - Tách trainer/pokemon ở ` & ` đầu tiên.
+- Tên trainer đi qua `TRAINER_RENAMES` (`Player` → `Scottie`, đúng tên nhân vật chính trong game và PoMaTools) — áp dụng cho Trainer, Grid lẫn rate-up của Scout, nên pair datamine gộp được với pair PoMaTools cùng tên và dùng chung sprite `scottie-masters`.
 - Gender: `(Male♂️|Female♀️|Genderless)`.
 - `✨` trong phần Pokémon → `shiny: true`.
 - ` - <gì đó>` ở cuối → `form`.
@@ -78,6 +79,7 @@ Quy tắc:
 - Khối pair được tách bằng dòng `---...END...---`.
 - Parser chạy theo `section`: `info → moves → passives → stats → tera / tera_passives → mega_moves / mega_stats`. Header section nhận diện bằng chuỗi con (`'⚔️ Moves Details'`, `'🛡️ Passive Details'`, `'Passives Details'` khi đang ở `tera`, `'📊 Base Stats'`, `'Mega Stats'`, `'Tera Moves Details'`). **Nếu datamine đổi chữ/emoji ở các header này, cập nhật chuỗi trong `parseTrainers()`.**
 - Mô tả passive = đúng 1 dòng ngay sau tên.
+- `category` (loại pair) cho pair **chưa có trong PoMaTools** được suy từ `Method:` qua `METHOD_CATEGORY` trong `build.mjs` (EX Master Fair, EX Fair, Master Fair, Arc Suit, Poké Fair, Seasonal, Special Costume, Variety, Mix Scout, Academy; Spotlight Scout và "Friendship Level-Up … in Lodge" → General — đã đối chiếu với mọi pair có ở cả hai nguồn). `Exchange` / `Mission Reward` không nói lên loại pair → để trống ("Chưa rõ"). Pair có trong PoMaTools luôn lấy loại của PoMaTools.
 - Pair có thể thiếu section: vd Juliana (event Academy) chỉ có Move 1 + Sync Move, không có passive → bình thường, UI tự ẩn mục trống.
 
 ## `🔷 Grid.txt` — `parseGrids()`
@@ -199,12 +201,28 @@ Nguồn bổ sung cho các pair ra **trước** các bản datamine: crawl từ 
 Quy tắc chuyển đổi:
 - **Role** (theo `RoleMap` trong JS của trang): 0 Strike (Physical), 1 Strike (Special), 2 Support, 3 Tech, 4 Sprint, 5 Field, 6 **Multi**. EX Role: 0/1 Strike, 2 Support, 3 Tech, 4 Sprint, 5 Field, −1 không có.
 - **Type**: 1…18 theo thứ tự chuẩn (1 Normal, 2 Fire, 3 Water, … 16 Dark, 17 Steel, 18 Fairy).
-- **Target / category / effect tag / cách nhận** không có nhãn → **học từ các pair có ở cả hai nguồn** (vote theo nhãn của datamine). Mã cách nhận `1`, `2`, `4`, `995`, `998` không đáng tin nên để trống.
+- **Target / category / effect tag** không có nhãn → **học từ các pair có ở cả hai nguồn** (vote theo nhãn của datamine).
+- **Loại pair** (`category`) = trường `exclusivity` của PoMaTools, nhãn lấy từ enum `Exclusivity` trong JS của trang + `locales/common_en.json` (`exclusivity_N`):
+
+  | Mã | `category` | Nhãn | Mã | `category` | Nhãn |
+  |---|---|---|---|---|---|
+  | 1 | `general` | General | 7 | `pokefairex` | EX Poké Fair |
+  | 2 | `pokefair` | Poké Fair | 8, 995 | `gym` | Gym |
+  | 3 | `seasonal` | Seasonal | 996 | `masterex` | EX Master Fair |
+  | 4 | `special` | Special Costume | 997 | `academy` | Academy |
+  | 5 | `variety` | Variety | 998 | `arc` | Arc Suit |
+  | 6 | `mix` | Mix | 999 | `master` | Master Fair |
+
+  Mã 995 không có trong enum của PoMaTools; nó gồm đúng 9 Gym Leader ra theo 3 đợt năm 2025 → xếp vào Gym.
+  **Không** suy loại pair từ dòng `Method:` của datamine khi PoMaTools có pair đó: `Method` là *cách lấy trong bản cập nhật đó* (vd Brandon & Articuno là Master Fair nhưng datamine ghi `Exchange`). Trước đây build "học" nhãn từ `Method` nên cả nhóm Master Fair bị gán thành Exchange.
 - **Grid**: `x, y` = `q, r` (cube `s = −x−y`); màu `#779EFF` Stat, `#47D147` Move Boost, `#FF0066` Move Effect, `#FFC266` Passive, `#BF80FF` Sync Move; `level` → "Move level must be N or higher"; tile id 13 chữ số bắt đầu bằng id passive 8 chữ số → mô tả ô = `passive_desc_<8 số đầu>`.
 - **Chỉ số**: mảng 7 mốc, `[0]` = Lv.1, `[5]` = Lv.140, `[6]` = Lv.200; Lv.150 nội suy tuyến tính (khớp datamine).
 - **Power tối đa** = `floor(power × 1.2)` (move level 5).
-- **Biến thể Pokémon** (`pokemon[1..]`, trường `variationType`): 1 Mega, 2 đổi form trong trận, 3 trước/sau sync, 5 form sau sync (vd Zygarde Complete, Ultra Necrozma), 6 Primal, 7 **Tera**. Chỉ số của biến thể = chỉ số gốc × `scale[]` (%, thứ tự HP/Atk/Def/SpA/SpD/Spe), làm tròn xuống — khớp số Mega của datamine (566 × 1.2 = 679). Với pair có trong datamine, hệ số được áp lên chỉ số gốc của datamine.
-- **Tera**: biến thể `variationType 7` → `teraType` (= type của biến thể) và `moveTera` → `teraMoves`. Nhãn form "Tera Type: X" trên Charizard/Cinderace/Gengar thường là mã form dùng chung, **không** có nghĩa pair đó có Tera.
+- **Biến thể Pokémon** (`pokemon[1..]`, trường `variationType`): 1 Mega, 2 đổi form trong trận, 3 trước/sau sync, 4 **Dynamax**, 5 form sau sync (vd Zygarde Complete, Ultra Necrozma), 6 Primal, 7 **Tera**. Chỉ số của biến thể = chỉ số gốc × `scale[]` (%, thứ tự HP/Atk/Def/SpA/SpD/Spe), làm tròn xuống — khớp số Mega của datamine (566 × 1.2 = 679). Với pair có trong datamine, hệ số được áp lên chỉ số gốc của datamine.
+- **Mega chỉ là `variationType 1`.** Primal (6), Zygarde Complete / Ultra Necrozma (5), Noice Face, Blade Forme (2)… đều là `kind: 'form'`. Section `📊🔄 Mega Stats` của datamine được dùng cho **mọi** dạng đổi chỉ số (kể cả Dynamax) → chỉ dựng dạng Mega từ nó cho pair **chỉ có trong datamine** và khi Showdown có sprite `<tên>-mega`; không thì là `form`.
+- **Move / passive theo dạng**: mỗi biến thể có `moves[]`, `passives[]`, `syncMove` riêng → so theo slot với `pokemon[0]`, chỉ lưu slot khác (`null` = giống). Vd Deoxys: `pokemon[0]` chỉ có Trainer move (Try This!…), mỗi forme Attack/Speed/Defense/Normal-sau có 4 move Pokémon + 2 passive khác nhau. Biến thể không đổi gì (sprite, chỉ số, move, passive) bị bỏ.
+- **Tera**: biến thể `variationType 7` → alt form `kind: 'tera'`, `teraType` (= type của biến thể; `99` = Stellar), `moveTera` → `teraMoves`, passive Tera theo slot. Nhãn form "Tera Type: X" trên Charizard/Cinderace/Gengar thường là mã form dùng chung, **không** có nghĩa pair đó có Tera (cũng bị bỏ qua trên biến thể Dynamax).
+- **Dynamax**: biến thể `variationType 4` (`moves` rỗng, có `moveDynamaxs[]`). Max Move thứ *i* ứng với move thứ *i* trong các move `user: Pokemon` **có type** của `pokemon[0]` (bỏ move item không type như Potion, Dire Hit +) — đã kiểm tra khớp type/category trên cả 48 pair. Move status → Max Guard. Có Max Move tên `G-Max …` (hoặc Eternabeam) → `kind: 'gigantamax'`, còn lại `'dynamax'`. Power Max Move là một số cố định (không có range move level).
 - **Alcremie**: vị kem chỉ nằm trong actor id `pm0869_<kem>_<topping>` (11 Vanilla, 12 Ruby Cream, 13 Matcha, 14 Mint, 15 Lemon, 16 Salted, 17 Ruby Swirl, 18 Caramel Swirl, 19 Rainbow Swirl — đã đối chiếu ảnh trong game).
 - **Ngày**: giờ Nhật 14:00 → trừ 8 tiếng để khớp mốc 06:00 của datamine.
 - **Sửa text**: `en.json` mất ký tự xuống dòng trong tên ("FirescourgeInferno" → tách chữ hoa), mất chữ "rank(s)" và để lại **no-break space U+00A0** ("by three␣␣when") → `cleanDesc` chuẩn hoá NBSP rồi chèn lại "rank"/"ranks".

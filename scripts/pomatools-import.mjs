@@ -3,7 +3,7 @@
    same pair shape build.mjs produces from the datamine .txt files.
 
    Numeric codes that pomatools stores without labels (move target,
-   category, effect tag, scout method) are learned from pairs that exist
+   category, effect tag) are learned from pairs that exist
    in BOTH sources, so labels always match the datamine's wording.
    ═══════════════════════════════════════════════════════════════ */
 
@@ -15,9 +15,10 @@ const TYPES = [null, 'Normal', 'Fire', 'Water', 'Electric', 'Grass', 'Ice', 'Fig
 // From the site's own RoleMap / ExRoleList (JS bundle)
 const ROLES = { 0: 'Strike (Physical)', 1: 'Strike (Special)', 2: 'Support', 3: 'Tech', 4: 'Sprint', 5: 'Field', 6: 'Multi' };
 const EX_ROLES = { 0: 'Strike', 1: 'Strike', 2: 'Support', 3: 'Tech', 4: 'Sprint', 5: 'Field' };
-// Scout-method codes learned from overlap can be misleading for the big general pool (1),
-// so only these are trusted; the rest stay blank.
-const TRUSTED_METHODS = new Set(['3', '5', '6', '7', '996', '997', '999']);
+// Pair category ("Pair Category" / exclusivity in PoMaTools: enum Exclusivity + locale exclusivity_N).
+// 995 isn't in their enum: it holds the 9 Gym Leaders released in the 2025 Gym events → Gym.
+const CATEGORIES = { 1: 'general', 2: 'pokefair', 3: 'seasonal', 4: 'special', 5: 'variety', 6: 'mix', 7: 'pokefairex',
+  8: 'gym', 995: 'gym', 996: 'masterex', 997: 'academy', 998: 'arc', 999: 'master' };
 const NUM = { one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10 };
 const GRID_COLOR = { '#779EFF': 'blue', '#47D147': 'green', '#FF0066': 'red', '#FFC266': 'yellow', '#BF80FF': 'rainbow' };
 const STAT_KEYS = { hp: 'HP', atk: 'Attack', def: 'Defense', spa: 'Sp. Atk', spd: 'Sp. Def', spe: 'Speed' };
@@ -72,7 +73,6 @@ export function loadPomatools(cacheDir, dataminePairs) {
     const dm = dmByName.get(norm(`${t('trainer_name', m.trainerName)}&${t('pokemon_name', m.pokemonName)}`));
     if (!dm) continue;
     overlap++;
-    vote('method', m.exclusivity, dm.method);
     const mon = pair.pokemon[0];
     for (const id of [...mon.moves, mon.syncMove]) {
       const mv = moveDb[id];
@@ -95,7 +95,8 @@ export function loadPomatools(cacheDir, dataminePairs) {
       slot, name: unjoin(t('move_name', id)) || `Move ${id}`, isSync: slot === 'Sync',
       type: TYPES[mv.type] || '', category: lookup.category[mv.category] || '',
       user: mv.user || '', description: cleanDesc(t('move_desc', id)),
-      power: mv.power ? `${mv.power} (1)/${powerMax} (5↑ MAX)` : '--',
+      // Max moves have one fixed power (only grid tiles raise it), no move-level range
+      power: !mv.power ? '--' : slot === 'Max' ? String(mv.power) : `${mv.power} (1)/${powerMax} (5↑ MAX)`,
       accuracy: mv.accuracy ? String(mv.accuracy) : '--', gauge: mv.gauge ? String(mv.gauge) : '--',
       target: lookup.target?.[mv.target] || '--', effectTag: lookup.tag?.[mv.tag] || (mv.tag ? mv.tag : '--'),
       maxUses: mv.uses ? String(mv.uses) : '--',
@@ -124,30 +125,54 @@ export function loadPomatools(cacheDir, dataminePairs) {
     const statsMain = mon.stat?.hp ? statsOf(mon.stat) : {};
     const role = ROLES[m.role] || '';
 
-    // Later variations (variationType): 1 Mega, 2 in-battle form change, 3 pre/post sync, 5 post-sync form,
-    // 6 Primal, 7 Tera. Each distinct Pokémon/form becomes an alt form with its own stats.
+    // Later variations (variationType): 1 Mega, 2 in-battle form change, 3 pre/post sync, 4 Dynamax,
+    // 5 post-sync form, 6 Primal, 7 Tera. Each one becomes an alt form carrying its own stats and,
+    // slot by slot, the moves / passives it swaps in (null = same as the base form).
     const variants = pair.pokemon.slice(1);
-    const megaMon = variants.find(v => v.name !== mon.name && v.stat?.hp);
     const formName = f => (f && f !== '0' ? t('pokemon_form', f) : '') || '';
-    const seen = new Set([`${mon.name}|${mon.form}`]);
+    const realIds = ids => (ids || []).filter(id => id && id !== '0');
+    const slotDiff = (ids, baseIds, conv) => ids.length && (ids.length !== baseIds.length || ids.some((id, i) => id !== baseIds[i]))
+      ? ids.map((id, i) => id === baseIds[i] ? null : conv(id, i + 1)) : null;
+    // Dynamax turns each typed Pokémon move, in order, into a Max Move (typeless item moves like Potion are skipped)
+    const maxSources = realIds(mon.moves).filter(id => moveDb[id]?.user === 'Pokemon' && moveDb[id].type);
+    const seen = new Set();
     const altForms = [];
     for (const v of variants) {
-      const key = `${v.name}|${v.form}`;
-      if (seen.has(key)) continue;
-      seen.add(key);
       const name = t('pokemon_name', v.name) || '';
-      const label = formName(v.form);
-      // Pure Tera / sync-state variants don't change how the Pokémon looks or its stats
-      if (/^(Tera Type|Sync Move|Pre-|Post-|Before|After)/.test(label) && v.name === mon.name) continue;
-      const kind = /^Mega |^Primal /.test(name) ? 'mega' : 'form';
-      altForms.push({ kind, pokemon: name, form: label, shiny: !!v.isShiny, scale: v.scale || null,
-        stats: v.stat?.hp ? applyScale(statsOf(v.stat), v.scale) : null });
+      // Tera / Dynamax variants reuse the base form code ("Tera Type: Dragon" on a Dynamax Charizard) — ignore it
+      const label = [4, 7].includes(v.variationType) && v.name === mon.name && !/Stellar|Terastal/.test(formName(v.form)) ? '' : formName(v.form);
+      const maxMoves = v.variationType === 4 ? realIds(v.moveDynamaxs).map((id, i) => {
+        const src = maxSources[i];
+        return { ...moveOf(id, 'Max'), from: src ? unjoin(t('move_name', src)) : '', fromSlot: src ? mon.moves.indexOf(src) + 1 : null };
+      }) : null;
+      const gmax = !!maxMoves?.some(m => /^G-Max/.test(m.name));
+      // Only real Mega Evolutions are 'mega'; Primal Reversion, Zygarde Complete, Ultra Necrozma… are form changes
+      const kind = { 1: 'mega', 4: gmax ? 'gigantamax' : 'dynamax', 7: 'tera' }[v.variationType] || 'form';
+      const f = {
+        kind, pokemon: name, form: label, shiny: !!v.isShiny, scale: v.scale || null,
+        stats: v.stat?.hp ? applyScale(statsOf(v.stat), v.scale) : null,
+        moves: slotDiff(realIds(v.moves), realIds(mon.moves), moveOf),
+        syncMove: realIds([v.syncMove])[0] && v.syncMove !== mon.syncMove ? moveOf(v.syncMove, 'Sync') : null,
+        passives: slotDiff(realIds(v.passives), realIds(mon.passives), passiveOf),
+        maxMoves,
+        teraType: v.variationType === 7 ? TYPES[v.type] || (v.type === 99 ? 'Stellar' : '') : '',
+        teraMoves: v.variationType === 7 ? realIds([v.moveTera]).map(id => moveOf(id, 'Tera')) : null,
+      };
+      Object.keys(f).forEach(k => f[k] === null && delete f[k]);
+      // Same Pokémon and form label as the base (Galarian Slowbro's Shell Side Arm switching category):
+      // name the form after the move it swaps in
+      if (kind === 'form' && v.name === mon.name && (!label || label === formName(mon.form)) && (f.moves || f.syncMove))
+        f.label = [...(f.moves || []).filter(Boolean), f.syncMove].filter(Boolean).map(m => m.name).join(' / ');
+      const key = JSON.stringify({ ...f, scale: null });
+      const plain = kind === 'form' && v.name === mon.name && !f.moves && !f.syncMove && !f.passives
+        && (!v.scale || v.scale.every(x => x === 100)) && (!label || label === formName(mon.form));
+      if (seen.has(key) || plain) continue; // nothing to show beyond the base form
+      seen.add(key);
+      altForms.push(f);
     }
-    const teraVariants = variants.filter(v => v.variationType === 7);
-    const teraType = teraVariants.length ? (TYPES[teraVariants[0].type] || formName(teraVariants[0].form).replace(/^.*Tera Type:\s*/, '').replace(/\)$/, '')) : '';
-    const teraMoveIds = [...new Set(teraVariants.map(v => v.moveTera).filter(id => id && id !== '0'))];
-    const extraPassives = [...new Set(variants.filter(v => v.name === mon.name).flatMap(v => v.passives))]
-      .filter(id => !mon.passives.includes(id) && id !== '0');
+    const megaMon = variants.find(v => v.variationType === 1 && v.stat?.hp);
+    const teraForm = altForms.find(f => f.kind === 'tera');
+    const teraType = teraForm?.teraType || '';
 
     const grid = (pair.grid || []).map((c, i) => {
       const id = String(c.abilityId);
@@ -176,15 +201,16 @@ export function loadPomatools(cacheDir, dataminePairs) {
       version: null, versions: [], source: 'pomatools',
       dialog: '', description: '',
       role, exRole: EX_ROLES[m.exRole] || '', type: TYPES[mon.type] || TYPES[m.type] || '', weakness: TYPES[mon.weakness] || '',
-      rarity: m.rarity || 0, expedition: '', method: TRUSTED_METHODS.has(String(m.exclusivity)) ? lookup.method?.[m.exclusivity] || '' : '', itemExchange: '', collectInfo: '',
+      rarity: m.rarity || 0, expedition: '', method: '', category: CATEGORIES[m.exclusivity] || '', itemExchange: '', collectInfo: '',
       exColor: false, teamSkills: (pair.themes || []).map(th => t('theme_name', th.name)).filter(Boolean),
       dates,
       moves: mon.moves.map((id, i) => moveOf(id, i + 1)), syncMove: mon.syncMove && mon.syncMove !== '0' ? moveOf(mon.syncMove, 'Sync') : null,
-      teraType, teraMoves: teraMoveIds.map(id => moveOf(id, 'Tera')), megaMoves: megaMon ? megaMon.moves.filter(id => !mon.moves.includes(id)).map(id => moveOf(id, 'Mega')) : [],
+      // Tera moves, Mega moves and form passives now live on their alt form (altForms[].teraMoves / moves / passives)
+      teraType, teraMoves: [], megaMoves: [],
       passives: mon.passives.filter(id => id !== '0').map((id, i) => passiveOf(id, i + 1)),
       superPassive: pair.specialAwaking && pair.specialAwaking !== '0'
         ? { name: unjoin(t('passive_name', pair.specialAwaking)), description: cleanDesc(t('passive_desc', pair.specialAwaking)) } : null,
-      teraPassives: extraPassives.map(id => passiveOf(id, teraType ? 'Tera' : 'Form')),
+      teraPassives: [],
       stats: statsMain, megaStats: megaMon ? applyScale(statsOf(megaMon.stat), megaMon.scale) : {},
       megaPokemon: megaMon ? t('pokemon_name', megaMon.name) : '',
       grid, dexNumber: m.dexNumber,

@@ -24,7 +24,13 @@ import { loadPomatools } from './pomatools-import.mjs';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const OUT = path.join(REPO, '.cache', 'outfits');
-const CHROME = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
+// Headless Chrome: $CHROME, else the usual macOS / Windows / Linux install paths
+const CHROME = process.env.CHROME || [
+  '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+  'C:/Program Files/Google/Chrome/Application/chrome.exe',
+  'C:/Program Files (x86)/Google/Chrome/Application/chrome.exe',
+  '/usr/bin/google-chrome',
+].find(p => fs.existsSync(p));
 const HEADERS = { 'User-Agent': 'pmex-datamine-dex/1.0 (fan viewer)' };
 fs.mkdirSync(path.join(OUT, 'icons'), { recursive: true });
 fs.mkdirSync(path.join(OUT, 'cand'), { recursive: true });

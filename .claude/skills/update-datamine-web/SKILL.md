@@ -46,6 +46,8 @@ Read these first — they are the source of truth and hold the details this skil
 ## Gotchas
 
 - `No.` is the trainer number, not unique per pair — pairs are keyed by the full header line.
+- The datamine's `Player` is Scottie; `TRAINER_RENAMES` in `scripts/build.mjs` renames him so he merges with the PoMaTools pairs. A new pair that duplicates an existing one under another trainer name needs an entry there.
+- Pair category comes from PoMaTools (`exclusivity`). A new pair PoMaTools doesn't have yet gets it from its `Method:` line via `METHOD_CATEGORY` in `scripts/build.mjs`; new wording (or `Exchange`) leaves it "Chưa rõ" → extend the regex list, and re-run the crawl later so PoMaTools' category takes over. Never map `Method:` onto PoMaTools codes — `Method` is how the pair is obtained in that update, not its category.
 - Grid header `Cell 49 - 54` means a grid expansion for an older pair (becomes `gridOnly`).
 - Scout `Require` nesting depends on tab indentation.
 - Press Start 2P has no Vietnamese glyphs — use `--font-ui` for Vietnamese text.
