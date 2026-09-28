@@ -1,0 +1,18 @@
+{
+  "name": "pmex-supez-dex",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Pixel-style infographic viewer for Pokémon Masters EX datamine: sync pairs, sync grids, scouts and Pasio Gym Battles.",
+  "type": "module",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "setup-data": "git clone https://github.com/absolutelypm/pokemas-datamine.git datamine",
+    "update-data": "git -C datamine pull --ff-only",
+    "crawl": "node scripts/crawl-pomatools.mjs",
+    "build": "node scripts/build.mjs",
+    "match-outfits": "node scripts/match-outfits.mjs",
+    "serve": "python3 -m http.server 8765 -d site"
+  }
+}

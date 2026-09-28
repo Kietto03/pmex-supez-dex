@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="vi" data-theme="night">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Pokémon Masters EX Datamine — Sync Pairs, Sync Grids, Scouts theo tháng và Pasio Gym Battle dạng infographic pixel.">
+  <title>PMEX Datamine Dex</title>
+  <link rel="icon" href="assets/items/poke-ball.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400;500;600;700&family=Press+Start+2P&family=Nunito:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <script>
+    // Apply the saved theme before first paint to avoid a flash
+    try {
+      const t = localStorage.getItem('pmex-theme') ||
+        (matchMedia('(prefers-color-scheme: light)').matches ? 'pokedex' : 'night');
+      document.documentElement.dataset.theme = t;
+    } catch (e) {}
+  </script>
+</head>
+<body>
+  <header class="topbar">
+    <a class="logo" href="#/">
+      <img src="assets/items/poke-ball.png" alt="" class="px-img logo-ball">
+      <span class="logo-text">PMEX<span class="logo-sub">DATAMINE DEX</span></span>
+    </a>
+    <nav class="nav" id="nav">
+      <a href="#/" data-route="home"><img src="assets/items/star-piece.png" alt="" class="px-img">Home</a>
+      <a href="#/pairs" data-route="pairs"><img src="assets/items/exp-share.png" alt="" class="px-img">Sync Pairs</a>
+      <a href="#/scouts" data-route="scouts"><img src="assets/items/rainbow-wing.png" alt="" class="px-img">Scouts</a>
+      <a href="#/gym" data-route="gym"><img src="assets/items/ultra-ball.png" alt="" class="px-img">Gym Battle</a>
+    </nav>
+    <div class="theme-picker" id="theme-picker" role="radiogroup" aria-label="Theme"></div>
+  </header>
+
+  <main id="view" class="view">
+    <div class="loading"><img src="assets/items/poke-ball.png" alt="" class="px-img spin"> Loading…</div>
+  </main>
+
+  <footer class="footer">
+    <span id="footer-info"></span>
+    <span>Sprites: Pokémon Showdown · PokéAPI — fan project, not affiliated with DeNA / The Pokémon Company.</span>
+  </footer>
+
+  <div class="tooltip" id="tooltip" role="tooltip"></div>
+
+  <script src="data/data.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,11 @@
+# Raw third-party crawls and review sheets — regenerate with `npm run crawl` / `npm run match-outfits`
+.cache/
+
+# Build cache of sprite URLs that returned 404
+site/assets/.missing.json
+
+node_modules/
+.DS_Store
+
+# Dataminer's repo (absolutelypm/pokemas-datamine), cloned locally — never committed here
+datamine/
