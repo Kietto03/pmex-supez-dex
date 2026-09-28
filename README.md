@@ -1,6 +1,6 @@
 # PMEX Supez Dex
 
-Pixel-style infographic viewer for **Pokémon Masters EX** datamine: every sync pair with moves, passives, stats and a pixel-art Sync Grid; monthly scout banners with a Gantt timeline; and Pasio Gym Battle circuits (rules per circuit, boss HP scaling, rewards). Five themes: Night, Pokédex, Game Boy, Master Ball, Sakura.
+Pixel-style infographic viewer for **Pokémon Masters EX** datamine: every sync pair with moves, passives, stats and a pixel-art Sync Grid; monthly scout banners with a Gantt timeline; and Pasio Gym Battle circuits (rules per circuit, boss HP scaling, rewards). The **GvG** tab tracks a guild through a Gym Battle — member runs, round progress per Gym Leader, tickets, leaderboard and the 1–3 pair team of every run — stored in the browser, shared by JSON file or a read-only link. Five themes: Night, Pokédex, Game Boy, Master Ball, Sakura.
 
 ## Layout
 
@@ -12,6 +12,7 @@ site/       the static website (deploy this folder)
 scripts/    build + data tools (Node ≥ 18, no npm dependencies)
 config/     hand-verified tables: outfit-sprites.json, custom-trainer-sprites.json + trainer-sprites/
 docs/       how the data is parsed and how to update (Vietnamese)
+test/       browser tests for the GvG tracker (serve the repo root, open test/gvg.test.html and test/gvg.e2e.html)
 .cache/     raw PoMaTools crawl + outfit review sheets (gitignored)
 ```
 
@@ -37,6 +38,7 @@ Details and checks: [docs/update-workflow.md](docs/update-workflow.md). In Claud
 ## Data sources & credits
 
 - Datamine text: [absolutelypm/pokemas-datamine](https://github.com/absolutelypm/pokemas-datamine).
+- GvG tracker: rebuilt from the spec of [Sh1n-Gh/gvg-app](https://github.com/Sh1n-Gh/gvg-app) (PRD-FINAL, PAIR-TEAM-LOG-SPEC) for a static site; no code copied.
 - Older sync pairs (before the datamine versions): [PoMaTools](https://www.pomatools.site/) by HsinChang — third-party data without a published license; ask the author before publishing it.
 - Sprites: [Pokémon Showdown](https://play.pokemonshowdown.com/sprites/), item icons: [PokéAPI](https://github.com/PokeAPI/sprites).
 

@@ -891,3 +891,104 @@ details.more[open] summary::before { content: '▼ '; }
   .pf-main .pair-grid { order: 4; }
 }
 .cat-tag { background: var(--cc); color: #fff; border-color: #000; text-shadow: 1px 1px 0 rgba(0,0,0,.4); }
+
+/* ─── GvG tracker (gvg.js) ─── */
+.gvg-tabs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 16px; }
+.gvg-ro { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px 12px; margin-bottom: 12px; font-weight: 600; }
+.gvg-banner { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); padding: 0; overflow: hidden; }
+.gvg-banner > div { display: flex; flex-direction: column; gap: 4px; padding: 14px 16px; border-right: 2px dashed var(--line); min-width: 0; }
+.gvg-banner > div:last-child { border-right: 0; }
+.gvg-banner small { font-size: 12px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: var(--ink-3); }
+.gvg-banner b { font-size: 20px; line-height: 1.15; overflow-wrap: anywhere; }
+.gvg-banner span { font-size: 13px; color: var(--ink-3); }
+.gvg-banner .gvg-big { background: var(--accent); color: var(--accent-ink); }
+.gvg-banner .gvg-big small, .gvg-banner .gvg-big span { color: inherit; opacity: .8; }
+.gvg-banner .gvg-big b { font-family: var(--font-px); font-size: 22px; }
+.gvg-banner .gvg-phase { font-size: 16px; }
+
+.gvg-maps { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.gvg-map { display: flex; flex-direction: column; gap: 8px; padding: 10px; background: var(--panel); border: var(--bw) solid var(--line); border-top: 6px solid var(--tc); box-shadow: var(--sh) var(--sh) 0 var(--shadow); min-width: 0; }
+.gvg-map.full { background-image: repeating-linear-gradient(45deg, rgba(85,227,155,.10) 0 8px, transparent 8px 16px); }
+.gvg-map-top { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.gvg-map-top .sprite { width: 48px; height: 48px; flex: none; }
+.gvg-map-top b { display: block; font-size: 15px; }
+.gvg-map-top small { color: var(--ink-3); }
+.gvg-rule.mcell { width: auto; height: auto; padding: 4px 6px; text-align: left; font-size: 11px; display: flex; gap: 6px; align-items: baseline; min-width: 0; }
+.gvg-rule span { font-weight: 600; opacity: .9; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.gvg-bar { height: 12px; background: var(--panel-2); border: 2px solid var(--line); }
+.gvg-bar i { display: block; height: 100%; background: var(--tc); box-shadow: inset 0 -3px 0 rgba(0,0,0,.2); transition: width .3s steps(8); }
+.gvg-map.full .gvg-bar i { background: var(--good); }
+.gvg-map-foot { display: flex; justify-content: space-between; font-size: 13px; font-variant-numeric: tabular-nums; color: var(--ink-2); }
+
+.gvg-table-wrap { overflow-x: auto; border: var(--bw) solid var(--line); box-shadow: var(--sh) var(--sh) 0 var(--shadow); background: var(--panel); }
+.gvg-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.gvg-table th { text-align: left; padding: 8px 10px; font-size: 12px; letter-spacing: 1px; text-transform: uppercase; color: var(--ink-3); background: var(--panel-2); border-bottom: 2px solid var(--line); white-space: nowrap; }
+.gvg-table td { padding: 6px 10px; border-bottom: 2px dashed var(--line); vertical-align: middle; }
+.gvg-table tr:last-child td { border-bottom: 0; }
+.gvg-table .num { text-align: right; font-variant-numeric: tabular-nums; }
+.gvg-table tr.banned td { opacity: .55; }
+.gvg-table .sprite { width: 28px; height: 28px; vertical-align: middle; }
+.gvg-ban { background: var(--danger); color: #fff; }
+.gvg-team-cell { white-space: nowrap; }
+.gvg-mini { display: inline-flex; align-items: center; gap: 2px; margin-right: 6px; }
+.gvg-mini small { font-size: 11px; color: var(--ink-2); }
+.gvg-mini b { color: var(--accent); }
+.gvg-row-act { white-space: nowrap; }
+.gvg-row-act .chip { padding: 2px 6px; }
+
+.gvg-form, .gvg-log { display: flex; flex-direction: column; gap: 12px; }
+.gvg-form label, .gvg-field { display: flex; flex-direction: column; gap: 6px; font-weight: 700; font-size: 13px; color: var(--ink-2); }
+.gvg-form input, .gvg-form select, .gvg-form textarea, .gvg-field > select, .gvg-field > input, .gvg-filters select, .gvg-member input, .gvg-share-out {
+  padding: 7px 9px; background: var(--panel-2); border: 2px solid var(--line); color: var(--ink); font: inherit; font-weight: 500; font-size: 15px;
+}
+.gvg-form :focus, .gvg-field :focus, .gvg-member input:focus { outline: none; border-color: var(--accent); }
+.gvg-row3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.gvg-onboard { max-width: 720px; }
+.gvg-pick { display: flex; flex-wrap: wrap; gap: 6px; font-weight: 600; }
+.gvg-pick .sprite { width: 26px; height: 26px; margin: -4px 0; }
+.gvg-pick .chip:disabled { opacity: .4; cursor: default; transform: none; }
+.gvg-team { display: flex; flex-direction: column; gap: 6px; }
+.gvg-slot { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 6px 8px; background: var(--panel-2); border: 2px solid var(--line); font-weight: 600; }
+.gvg-slot .sprite { width: 36px; height: 36px; }
+.gvg-slot b { flex: 1 1 140px; font-size: 14px; color: var(--ink); }
+.gvg-slot select, .gvg-slot input { padding: 4px 6px; background: var(--panel); border: 2px solid var(--line); color: var(--ink); font: inherit; width: 76px; }
+.gvg-seg { display: inline-flex; border: 2px solid var(--line); }
+.gvg-seg button { padding: 3px 9px; background: var(--panel); border: 0; border-right: 2px solid var(--line); color: var(--ink-2); font-weight: 700; }
+.gvg-seg button:last-child { border-right: 0; }
+.gvg-seg button.on { background: var(--accent); color: var(--accent-ink); }
+.gvg-seg button:disabled { opacity: .35; }
+.gvg-search input { width: 100%; padding: 7px 9px; background: var(--panel-2); border: 2px dashed var(--line); color: var(--ink); font: inherit; }
+.gvg-results { display: flex; flex-direction: column; max-height: 320px; overflow-y: auto; }
+.gvg-results:not(:empty) { border: 2px solid var(--line); border-top: 0; background: var(--panel); }
+.gvg-results button { display: flex; align-items: center; gap: 6px; padding: 4px 8px; background: none; border: 0; border-bottom: 1px dashed var(--line); color: var(--ink); text-align: left; font: inherit; font-weight: 600; }
+.gvg-results button:hover, .gvg-results button:focus { background: var(--panel-2); outline: none; }
+.gvg-results button span { flex: 1; }
+.gvg-results small { color: var(--ink-3); font-weight: 500; }
+.gvg-results .sprite { width: 30px; height: 30px; }
+.gvg-results p { padding: 8px; margin: 0; }
+.gvg-err { margin: 0; color: var(--danger); font-weight: 700; }
+.gvg-err:empty { display: none; }
+.gvg-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.gvg-filters { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 10px 12px; margin-bottom: 12px; }
+.gvg-roster, .gvg-seasons { display: flex; flex-direction: column; gap: 6px; }
+.gvg-member { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 4px 0; border-bottom: 2px dashed var(--line); }
+.gvg-member input { flex: 1 1 140px; padding: 4px 8px; }
+.gvg-member.banned input { text-decoration: line-through; opacity: .6; }
+.gvg-member.on b { color: var(--accent); }
+.gvg-member b { flex: 1 1 auto; }
+.gvg-share-out { width: 100%; margin-top: 10px; font-size: 12px; }
+.gvg-toast { position: fixed; left: 50%; bottom: 20px; z-index: 50; transform: translate(-50%, 160%); padding: 10px 16px; max-width: calc(100vw - 32px);
+  background: var(--panel); color: var(--ink); border: var(--bw) solid var(--good); box-shadow: 4px 4px 0 var(--shadow); font-weight: 700; transition: transform .2s steps(4); }
+.gvg-toast.bad { border-color: var(--danger); }
+.gvg-toast.show { transform: translate(-50%, 0); }
+
+@media (max-width: 900px) {
+  .gvg-banner { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .gvg-banner > div:nth-child(2) { border-right: 0; }
+  .gvg-banner > div:nth-child(-n+2) { border-bottom: 2px dashed var(--line); }
+  .gvg-maps { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 560px) {
+  .gvg-row3 { grid-template-columns: 1fr; }
+  .gvg-banner b { font-size: 17px; }
+}
