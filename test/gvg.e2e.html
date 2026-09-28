@@ -25,7 +25,8 @@ f.onload = async () => {
     const ml = q('[data-g-slot="0"][data-k="ml"]'); ml.value = '5'; ml.dispatchEvent(new Event('change', { bubbles: true }));
     q('form[data-g-form="entry"]').requestSubmit(); await wait(100);
     let st = JSON.parse(localStorage.getItem('pmex-gvg')).seasons[0];
-    ok('entry saved', st.entries.length === 1 && st.entries[0].p === 4000 && st.entries[0].t === 2 && st.entries[0].team[0].ml === 5, JSON.stringify(st.entries));
+    ok('entry saved (Circuit 1 forces 3 tickets)', st.entries.length === 1 && st.entries[0].p === 4000 && st.entries[0].t === 3 && st.entries[0].team[0].ml === 5, JSON.stringify(st.entries));
+    ok('×1/×2 disabled on regular circuit', q('[data-g="t"][data-v="1"]').disabled && q('[data-g="t"][data-v="2"]').disabled);
     ok('profile remembered', st.profiles.m1 && Object.values(st.profiles.m1)[0].ml === 5);
     ok('member kept for next entry', q('[data-g-field="m"]').value === 'm1');
     // Invalid: over the cap

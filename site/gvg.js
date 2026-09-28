@@ -17,7 +17,14 @@
 const GVG_KEY = 'pmex-gvg';
 const DAY_MS = 864e5;
 const GVG_TABS = [['', 'Dashboard'], ['log', 'Ghi log'], ['history', 'Lịch sử'], ['members', 'Thành viên'], ['data', 'Mùa & dữ liệu']];
-const TICKET_DEFAULT = { day1: 12, daily: 3, days: 6 };
+// Official rules (announcement Update_8010_1W_2): 9 tickets when Battle opens, +3 every day while battles run,
+// at most 30 per member and 600 used by the whole gym. `days: null` = derive from the Battle phase.
+const TICKET_DEFAULT = { day1: 9, daily: 3, days: null, cap: 30, gymCap: 600 };
+const gvgTickets = (s, start, end) => {
+  const t = { ...TICKET_DEFAULT, ...s.tickets };
+  if (t.days == null) t.days = Number.isFinite(end - start) ? Math.max(0, Math.round((end - start) / DAY_MS) - 1) : 6;
+  return t;
+};
 const uid = () => Math.random().toString(36).slice(2, 9) + Date.now().toString(36).slice(-4);
 
 // ─── Store ──────────────────────────────────────────────────
@@ -51,18 +58,20 @@ function gvgCtx(s, now = Date.now()) {
   const onward = C.length && /and onward/i.test(C.at(-1).name);
   const onwardFrom = onward ? +(C.at(-1).name.match(/(\d+)/)?.[1] || 0) : 0;
 
+  // Regular circuits always cost 3 tickets a run; Extra Battles let the player spend 1–3
+  const cost = c => /Regular/i.test(c.kind) ? 3 : null;
   const round = n => {
     if (n < 1) return null;
-    if (n <= C.length) return { n, max: C[n - 1].pts, ball: C[n - 1].ball, label: onward && n === C.length ? `Extra Battle ${onwardFrom}` : C[n - 1].name };
+    if (n <= C.length) return { n, max: C[n - 1].pts, ball: C[n - 1].ball, fixed: cost(C[n - 1]), label: onward && n === C.length ? `Extra Battle ${onwardFrom}` : C[n - 1].name };
     if (!onward) return null;
-    return { n, max: C.at(-1).pts, ball: C.at(-1).ball, label: `Extra Battle ${onwardFrom + n - C.length}`, repeat: true };
+    return { n, max: C.at(-1).pts, ball: C.at(-1).ball, fixed: cost(C.at(-1)), label: `Extra Battle ${onwardFrom + n - C.length}`, repeat: true };
   };
   // The leader as fought in round n: the "… and onward" stage rotates Rules 1/2/3
   const leaderAt = (n, name) => {
     const st = g.stages[Math.min(n, g.stages.length) - 1] || g.stages[0];
     const l = st.leaders.find(x => x.name === name) || leaders.find(x => x.name === name);
     const rule = l.rules?.length ? l.rules[(Math.max(n, g.stages.length) - g.stages.length) % l.rules.length] : l.theme || 'No rules';
-    return { ...l, ruleText: rule, weak: l.units?.[0]?.weakness || '' };
+    return { ...l, ruleText: rule, weak: [...new Set((l.units || []).map(u => u.weakness).filter(Boolean))] };
   };
 
   const banned = new Set(s.members.filter(m => m.banned).map(m => m.id));
@@ -85,11 +94,13 @@ function gvgCtx(s, now = Date.now()) {
   }
   const battle = g.phases.find(p => p.name === 'Battle');
   const start = utc(battle?.start), end = utc(battle?.end);
-  const t = { ...TICKET_DEFAULT, ...s.tickets };
-  const granted = now < start ? 0 : t.day1 + t.daily * Math.min(Math.floor((now - start) / DAY_MS), t.days);
+  // Tickets: day1 at the start of Battle, then `daily` every day until Battle ends (days = Battle length − 1 unless set)
+  const t = gvgTickets(s, start, end);
+  const granted = now < start ? 0 : Math.min(t.cap, t.day1 + t.daily * Math.min(Math.floor((now - start) / DAY_MS), t.days));
   const combined = s.entries.reduce((a, e) => a + (banned.has(e.m) ? 0 : e.p), 0);
+  const gymUsed = s.entries.reduce((a, e) => a + e.t, 0);
   return { g, maps, round, leaderAt, pts, status, active, finished: active == null && Object.keys(status).length > 0,
-    perMember, banned, granted, start, end, combined, ticketCost: g.tickets || [] };
+    perMember, banned, granted, start, end, combined, gymUsed, tickets: t, ticketCost: g.tickets || [] };
 }
 const gvgTicketsLeft = (ctx, memberId) => ctx.granted - (ctx.perMember[memberId]?.tickets || 0);
 
@@ -108,8 +119,12 @@ function gvgValidate(s, ctx, d, editing = null) {
   }
   const left = gvgTicketsLeft(ctx, d.m) + (editing?.m === d.m ? editing.t : 0);
   if (d.t > left) return `Không đủ vé: ${m.name} còn ${Math.max(left, 0)} vé.`;
-  const cap = ctx.round(d.r)?.max;
-  if (!cap) return 'Round không còn cấu hình hợp lệ.';
+  const gymLeft = ctx.tickets.gymCap - ctx.gymUsed + (editing ? editing.t : 0);
+  if (d.t > gymLeft) return `Cả Gym chỉ được dùng ${ctx.tickets.gymCap} vé — còn ${Math.max(gymLeft, 0)} vé.`;
+  const cfg = ctx.round(d.r);
+  if (!cfg) return 'Round không còn cấu hình hợp lệ.';
+  if (cfg.fixed && d.t !== cfg.fixed) return `${cfg.label} luôn tốn ${cfg.fixed} vé mỗi lượt — chọn 1–3 vé chỉ có từ Extra Battle.`;
+  const cap = cfg.max;
   const have = (ctx.pts[d.r]?.[d.map] || 0) - (editing && editing.r === d.r && editing.map === d.map ? editing.p : 0);
   if (have + d.p > cap) return `Vượt trần round: ${d.map} chỉ còn thiếu ${fmtN(cap - have)} điểm.`;
   const ids = d.team.map(x => x.id);
@@ -172,17 +187,22 @@ function gvgOnboarding() {
   </div>`;
 }
 
+// Ticket schedule inputs (shared by the new-season and settings forms); blank "days" = until Battle ends
+const gvgTicketFields = t => `
+      <div class="gvg-row3">
+        <label ${tip('Vé lúc mở Battle', 'Mỗi thành viên nhận khi Battle bắt đầu (mặc định 9)')}>Vé ban đầu<input name="day1" type="number" min="0" value="${t.day1}"></label>
+        <label ${tip('Vé mỗi ngày', 'Nhận thêm ở mỗi lần reset hằng ngày (mặc định 3)')}>Vé mỗi ngày<input name="daily" type="number" min="0" value="${t.daily}"></label>
+        <label ${tip('Số ngày nhận thêm', 'Để trống = mọi ngày cho đến khi Battle kết thúc')}>Số ngày nhận thêm<input name="days" type="number" min="0" value="${t.days ?? ''}" placeholder="đến hết Battle"></label>
+        <label ${tip('Tối đa mỗi người', 'Mỗi thành viên nhận tối đa bấy nhiêu vé (mặc định 30)')}>Tối đa / người<input name="cap" type="number" min="0" value="${t.cap}"></label>
+        <label ${tip('Tối đa cả Gym', 'Cả Gym dùng tối đa bấy nhiêu vé (mặc định 600)')}>Tối đa cả Gym<input name="gymCap" type="number" min="0" value="${t.gymCap}"></label>
+      </div>`;
+
 function gvgSeasonForm(prev) {
-  const t = { ...TICKET_DEFAULT, ...prev.tickets };
   return `
     <form class="gvg-form" data-g-form="season">
       <label>Tên guild<input name="guild" value="${esc(prev.guild || '')}" placeholder="VD: Pasio Stars" maxlength="40"></label>
       <label>Gym Battle<select name="gym">${D.gyms.slice().reverse().map(g => `<option ${g.name === prev.gym ? 'selected' : ''}>${esc(g.name)}</option>`).join('')}</select></label>
-      <div class="gvg-row3">
-        <label ${tip('Vé ngày đầu', 'Số vé mỗi thành viên nhận khi Battle bắt đầu')}>Vé ngày 1<input name="day1" type="number" min="0" value="${t.day1}"></label>
-        <label>Vé mỗi ngày sau<input name="daily" type="number" min="0" value="${t.daily}"></label>
-        <label>Số ngày nhận thêm<input name="days" type="number" min="0" value="${t.days}"></label>
-      </div>
+      ${gvgTicketFields({ ...TICKET_DEFAULT, ...prev.tickets })}
       <label>Thành viên <small class="muted">(mỗi dòng một tên${prev.members.length ? '; đã bỏ người bị khoá của mùa trước' : ''})</small>
         <textarea name="roster" rows="6" placeholder="Yudar&#10;Mina&#10;…">${esc(prev.members.filter(m => !m.banned).map(m => m.name).join('\n'))}</textarea></label>
       <button class="chip on" type="submit">＋ Tạo mùa</button>
@@ -194,22 +214,29 @@ function gvgDashboard(s, ctx) {
   const now = Date.now();
   const cur = ctx.active ? ctx.round(ctx.active) : null;
   const live = s.members.filter(m => !m.banned);
-  const ticketsLeft = live.reduce((a, m) => a + Math.max(gvgTicketsLeft(ctx, m.id), 0), 0);
+  // Unused tickets are also bounded by what the gym as a whole may still spend
+  const ticketsLeft = Math.min(live.reduce((a, m) => a + Math.max(gvgTicketsLeft(ctx, m.id), 0), 0), Math.max(ctx.tickets.gymCap - ctx.gymUsed, 0));
   const phase = now < ctx.start ? `Battle bắt đầu ${fmtDate(new Date(ctx.start).toISOString().slice(0, 16))}`
     : now < ctx.end ? `Ngày ${Math.floor((now - ctx.start) / DAY_MS) + 1} · còn ${gvgDur(ctx.end - now)}` : 'Battle đã kết thúc';
   const done = Object.values(ctx.status).filter(x => x === 'completed').length;
   return `
   <section class="gvg-banner box">
     <div><small>Round hiện tại</small><b>${cur ? esc(cur.label) : ctx.finished ? 'Hoàn thành!' : '—'}</b>
-      <span>${cur ? `trần ${fmtN(cur.max)} điểm / map${cur.repeat ? ' · lặp lại' : ''}` : ctx.finished ? 'Đã xong toàn bộ nội dung hiện có' : ''}</span></div>
+      <span>${cur ? `trần ${fmtN(cur.max)} điểm / map · ${cur.fixed ? `${cur.fixed} vé/lượt` : '1–3 vé/lượt'}${cur.repeat ? ' · lặp lại' : ''}` : ctx.finished ? 'Đã xong toàn bộ nội dung hiện có' : ''}</span></div>
     <div class="gvg-big"><small>Combined Score</small><b>${fmtN(ctx.combined)}</b><span>${done} round đã xong${ctx.banned.size ? ` · không tính ${ctx.banned.size} người bị khoá` : ''}</span></div>
-    <div><small>Vé chưa dùng</small><b>${fmtN(ticketsLeft)}</b><span>${live.length} người · ${ctx.granted} vé/người đến hiện tại</span></div>
+    <div><small>Vé chưa dùng</small><b>${fmtN(ticketsLeft)}</b><span>${ctx.granted}/${ctx.tickets.cap} vé mỗi người · Gym đã dùng ${fmtN(ctx.gymUsed)}/${fmtN(ctx.tickets.gymCap)}</span></div>
     <div><small>Battle</small><b class="gvg-phase">${phase}</b><span>${esc(s.gym)}</span></div>
   </section>
 
   ${cur ? `<div class="section">
     <h2 class="section-title">8 Gym Leader <span class="count">${esc(cur.label)}</span></h2>
-    <div class="gvg-maps">${ctx.maps.map(name => gvgMapCard(ctx, cur, name)).join('')}</div>
+    <div class="gvg-maps">${ctx.maps.map(name => gvgMapCard(s, ctx, cur, name)).join('')}</div>
+  </div>` : ''}
+
+  ${!gvgShared && ctx.granted ? `<div class="section">
+    <h2 class="section-title">Còn vé <span class="count">bấm tên để ghi lượt</span></h2>
+    <div class="gvg-pick">${live.map(m => ({ m, left: gvgTicketsLeft(ctx, m.id) })).filter(x => x.left > 0).sort((a, b) => b.left - a.left)
+      .map(x => `<button class="chip" data-g="quickmember" data-v="${x.m.id}">${esc(x.m.name)}<span class="n">🎟️ ${x.left}</span></button>`).join('') || '<p class="muted">Mọi người đã dùng hết vé hiện có.</p>'}</div>
   </div>` : ''}
 
   <div class="section">
@@ -219,17 +246,24 @@ function gvgDashboard(s, ctx) {
 }
 const gvgDur = ms => { const h = Math.floor(ms / 36e5); return h >= 24 ? `${Math.floor(h / 24)} ngày ${h % 24} giờ` : `${h} giờ ${Math.floor(ms / 6e4) % 60} phút`; };
 
-function gvgMapCard(ctx, cur, name) {
+function gvgMapCard(s, ctx, cur, name) {
   const l = ctx.leaderAt(cur.n, name);
   const have = ctx.pts[cur.n]?.[name] || 0;
   const pct = Math.min(100, have / cur.max * 100);
   const rc = ruleClass(l.ruleText);
+  const full = have >= cur.max;
+  const note = s.notes?.[name] || '';
   return `
-  <div class="gvg-map ${have >= cur.max ? 'full' : ''}" style="--tc:${TYPE_COLORS[l.type] || '#777'}">
-    <div class="gvg-map-top">${img(ctx.g.leaderSprites?.[name], 'sprite', name)}<div><b>${esc(name)}</b>${typeBadge(l.type, true)}${l.weak ? ` <small>yếu ${esc(l.weak)}</small>` : ''}</div></div>
+  <div class="gvg-map ${full ? 'full' : ''}" style="--tc:${TYPE_COLORS[l.type] || '#777'}">
+    <div class="gvg-map-top">${img(ctx.g.leaderSprites?.[name], 'sprite', name)}<div><b>${esc(name)}</b>${typeBadge(l.type, true)}</div></div>
+    ${l.weak.length ? `<div class="gvg-weak" ${tip('Điểm yếu', 'Hệ gây thêm sát thương lên các unit của Gym Leader này')}><small>YẾU</small>${l.weak.map(w => typeBadge(w)).join('')}</div>` : ''}
     <div class="gvg-rule mcell ${rc.cls}" ${tip('Luật ' + cur.label, l.ruleText)}>${esc(rc.short)}${rc.se ? ' ⊘SE' : ''} <span>${esc(l.ruleText)}</span></div>
     <div class="gvg-bar"><i style="width:${pct}%"></i></div>
-    <div class="gvg-map-foot"><span>${fmtN(have)} / ${fmtShort(cur.max)}</span><span>${have >= cur.max ? '✔ Đủ điểm' : `còn ${fmtN(cur.max - have)}`}</span></div>
+    <div class="gvg-map-foot"><span>${fmtN(have)} / ${fmtShort(cur.max)}</span><span>${full ? '✔ Đủ điểm' : `còn ${fmtN(cur.max - have)}`}</span></div>
+    ${note ? `<p class="gvg-note">📝 ${esc(note)}</p>` : ''}
+    ${gvgShared ? '' : `<div class="gvg-map-act">
+      ${full ? '' : `<button class="chip" data-g="quicklog" data-v="${esc(name)}">＋ Ghi lượt</button>`}
+      <button class="chip" data-g="note" data-v="${esc(name)}" ${tip('Ghi chú', 'Chiến thuật / team gợi ý cho map này, lưu theo mùa')}>📝</button></div>`}
   </div>`;
 }
 
@@ -259,6 +293,7 @@ function gvgLogForm(s, ctx) {
   if (!editing && !cur) return `<div class="empty">${img(PLACEHOLDER)}${ctx.finished ? 'Đã hoàn thành toàn bộ nội dung của mùa này.' : 'Chưa có round nào đang mở.'}</div>`;
   if (!s.members.length) return `<div class="empty">${img(PLACEHOLDER)}Thêm thành viên ở tab <a href="#/gvg/members">Thành viên</a> trước.</div>`;
   const left = m => gvgTicketsLeft(ctx, m.id) + (editing?.m === m.id ? editing.t : 0);
+  if (cur?.fixed) d.t = cur.fixed; // regular circuits: no choice
   return `
   <form class="gvg-log box card" data-g-form="entry">
     <h2 class="section-title">${editing ? `Sửa lượt · ${esc(cur?.label || 'Round ' + d.r)}` : `Ghi lượt mới · ${esc(cur.label)}`}</h2>
@@ -270,13 +305,14 @@ function gvgLogForm(s, ctx) {
       <div class="gvg-pick">${ctx.maps.map(name => {
         const have = (ctx.pts[d.r]?.[name] || 0) - (editing && editing.map === name && editing.r === d.r ? editing.p : 0);
         const full = cur && have >= cur.max;
-        return `<button type="button" class="chip ${d.map === name ? 'on' : ''}" data-g="map" data-v="${esc(name)}" ${full ? 'disabled' : ''}>
-          ${img(ctx.g.leaderSprites?.[name], 'sprite')}${esc(name)}<span class="n">${full ? '✔' : fmtShort(cur.max - have)}</span></button>`;
+        const l = ctx.leaderAt(d.r, name);
+        return `<button type="button" class="chip gvg-mapbtn ${d.map === name ? 'on' : ''}" data-g="map" data-v="${esc(name)}" ${full ? 'disabled' : ''} ${tip(name, `${l.type} · yếu ${l.weak.join(', ')} · ${l.ruleText}`)}>
+          ${img(ctx.g.leaderSprites?.[name], 'sprite')}${esc(name)}${l.weak.map(w => typeBadge(w, true)).join('')}<span class="n">${full ? '✔' : fmtShort(cur.max - have)}</span></button>`;
       }).join('')}</div></div>
 
-    <div class="gvg-field">Số vé
+    <div class="gvg-field">Số vé <small class="muted">${cur?.fixed ? `(${esc(cur.label)}: luôn ${cur.fixed} vé — chọn 1–3 vé từ Extra Battle)` : '(Extra Battle: nhiều vé hơn = thêm thời gian và Sync buff)'}</small>
       <div class="gvg-pick">${[1, 2, 3].map(n => { const c = ctx.ticketCost.find(x => x.tickets === n);
-        return `<button type="button" class="chip ${d.t === n ? 'on' : ''}" data-g="t" data-v="${n}">🎟️ ×${n}${c ? `<span class="n">${c.time} · Sync +${c.buff}</span>` : ''}</button>`; }).join('')}</div></div>
+        return `<button type="button" class="chip ${d.t === n ? 'on' : ''}" data-g="t" data-v="${n}" ${cur?.fixed && n !== cur.fixed ? 'disabled' : ''}>🎟️ ×${n}${c ? `<span class="n">${c.time} · Sync +${c.buff}</span>` : ''}</button>`; }).join('')}</div></div>
 
     <label class="gvg-field">Điểm
       <input name="p" data-g-field="p" type="number" min="1" inputmode="numeric" value="${d.p}" placeholder="${d.map && cur ? 'tối đa ' + fmtN(cur.max - ((ctx.pts[d.r]?.[d.map] || 0) - (editing && editing.map === d.map ? editing.p : 0))) : 'VD: 98000'}"></label>
@@ -406,11 +442,7 @@ function gvgData(s) {
       <h2 class="section-title">Mùa hiện tại</h2>
       <form class="gvg-form" data-g-form="tickets">
         <label>Tên guild<input name="guild" value="${esc(s.guild || '')}" maxlength="40"></label>
-        <div class="gvg-row3">
-          <label>Vé ngày 1<input name="day1" type="number" min="0" value="${t.day1}"></label>
-          <label>Vé mỗi ngày sau<input name="daily" type="number" min="0" value="${t.daily}"></label>
-          <label>Số ngày nhận thêm<input name="days" type="number" min="0" value="${t.days}"></label>
-        </div>
+        ${gvgTicketFields(t)}
         <button class="chip on" type="submit">💾 Lưu</button>
       </form>
       <h3>Các mùa</h3>
@@ -452,6 +484,7 @@ function gvgMerge(into, from) {
     dst.members = union(dst.members, src.members || []);
     dst.entries = union(dst.entries, src.entries || []).sort((a, b) => a.at - b.at);
     dst.profiles = { ...src.profiles, ...dst.profiles };
+    dst.notes = (src.u || 0) > (dst.u || 0) ? { ...dst.notes, ...src.notes } : { ...src.notes, ...dst.notes };
     dst.gone = [...gone];
     if ((src.u || 0) > (dst.u || 0)) Object.assign(dst, { guild: src.guild, tickets: src.tickets, gym: src.gym, u: src.u });
   }
@@ -480,7 +513,8 @@ document.addEventListener('submit', e => {
   e.preventDefault();
   const f = Object.fromEntries(new FormData(form));
   const kind = form.dataset.gForm;
-  const tickets = f.day1 != null ? { day1: +f.day1 || 0, daily: +f.daily || 0, days: +f.days || 0 } : null;
+  const tickets = f.day1 != null ? { day1: +f.day1 || 0, daily: +f.daily || 0, days: f.days === '' ? null : +f.days || 0,
+    cap: f.cap === '' ? TICKET_DEFAULT.cap : +f.cap, gymCap: f.gymCap === '' ? TICKET_DEFAULT.gymCap : +f.gymCap } : null;
 
   if (kind === 'season') {
     const names = [...new Set(String(f.roster || '').split('\n').map(x => x.trim()).filter(Boolean))];
@@ -536,6 +570,17 @@ document.addEventListener('click', async e => {
   const s = gvgSeason();
   if (!s) return;
   const d = gvgDraft;
+  // Dashboard shortcuts: open the log form with the map or member already picked
+  if (act === 'quicklog' || act === 'quickmember') {
+    gvgDraft = { ...gvgNewDraft(s, gvgCtx(s)), ...(act === 'quicklog' ? { map: v } : { m: v }) };
+    location.hash = '#/gvg/log'; return;
+  }
+  if (act === 'note') {
+    const text = prompt(`Ghi chú cho ${v} (chiến thuật, team gợi ý…):`, s.notes?.[v] || '');
+    if (text == null) return;
+    (s.notes ||= {})[v] = text.trim().slice(0, 300);
+    gvgSave(); return gvgRedraw();
+  }
   if (act === 'map') { d.map = v; return gvgRedraw(); }
   if (act === 't') { d.t = +v; return gvgRedraw(); }
   if (act === 'ex') { d.team[+b.dataset.i].ex = v; return gvgRedraw(); }
