@@ -6,6 +6,7 @@ Tài liệu cho web viewer trong `site/` và quy trình cập nhật khi có dat
 |---|---|
 | [update-workflow.md](update-workflow.md) | **Checklist khi có version / file mới** — làm theo thứ tự này mỗi lần update |
 | [data-formats.md](data-formats.md) | Format của từng file `.txt` nguồn và cách parser đọc chúng |
+| [gym-manager.md](gym-manager.md) | **Gym Manager**: cài Supabase, vai trò, vận hành (người vào/rời gym), luật Gym Battle, test |
 | [web-architecture.md](web-architecture.md) | Cấu trúc code (`scripts/build.mjs`, `app.js`, `styles.css`), data model, cách mở rộng |
 
 Skill Claude Code tương ứng: `.claude/skills/update-datamine-web/SKILL.md` — gõ `/update-datamine-web` trong Claude Code để chạy lại quy trình.

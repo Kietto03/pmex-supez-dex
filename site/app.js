@@ -1596,7 +1596,7 @@ document.addEventListener('click', e => {
 });
 
 // ─── Boot ───────────────────────────────────────────────────
-// Deferred until every script tag has run, so modules loaded after app.js (gvg.js) can register routes first
+// Deferred until every script tag has run
 addEventListener('DOMContentLoaded', () => {
 if (!D) {
   view.innerHTML = `<div class="empty">${img(PLACEHOLDER)}Chưa có <code>data/data.js</code>. Chạy <code>npm run build</code> ở thư mục gốc repo.</div>`;

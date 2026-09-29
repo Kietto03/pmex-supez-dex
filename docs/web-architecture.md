@@ -14,7 +14,6 @@ config/
 site/                      web tĩnh — deploy nguyên thư mục này
 ├── index.html             khung trang: topbar, <main id="view">, tooltip, script
 ├── app.js                 toàn bộ UI (vanilla JS, không framework, không bundler)
-├── gvg.js                 tab GvG — theo dõi guild trong Pasio Gym Battle (xem mục GvG), nạp sau app.js
 ├── styles.css             theme + component CSS
 ├── data/data.js           GENERATED — window.PMEX_DATA: bản tóm tắt mọi pair + scout + gym
 ├── data/pairs/<id>.js     GENERATED — chi tiết từng pair, tải khi mở trang pair
@@ -26,7 +25,6 @@ site/                      web tĩnh — deploy nguyên thư mục này
     └── .missing.json          cache URL 404 (gitignored)
 .cache/                    crawl thô + bảng đối chiếu outfit (gitignored)
 docs/                      tài liệu này
-test/                      test trình duyệt cho GvG: gvg.test.html (logic) + gvg.e2e.html (thao tác UI)
 .claude/skills/            skill /update-datamine-web
 package.json               lệnh npm: setup-data, update-data, crawl, build, match-outfits, serve
 ```
@@ -151,44 +149,6 @@ Mỗi nhóm lọc là một phần tử trong `PF_GROUPS`:
 1. Viết `parseXxx(text)` trong `scripts/build.mjs`, gọi trong vòng lặp `for (const v of versions)`, đưa kết quả vào object `data`.
 2. Thêm route trong `routes`, link trong `<nav>` của `index.html` (kèm `data-route`), hàm `renderXxx`.
 3. Chạy lại build, kiểm tra như `update-workflow.md`.
-
-## GvG — theo dõi guild (`gvg.js`)
-
-Dựng lại tính năng của [gvg-app](https://github.com/Sh1n-Gh/gvg-app) (Express + SQLite + đăng nhập) thành một tab của web tĩnh, theo spec `PRD-FINAL.md` + `PAIR-TEAM-LOG-SPEC.md` của repo đó (không chép code — repo không có license).
-
-**Cấu hình mùa lấy từ datamine** (`D.gyms`), không cần Master Admin:
-
-| gvg-app | Ở đây |
-|---|---|
-| 8 map + type | 8 Gym Leader của stage đầu (`stages[0].leaders`), kèm weakness của unit |
-| Round + `max_score` | `circuits[n-1].pts` (Circuit 1–3, Extra Battle 1…) |
-| `repeat_max_score` | circuit cuối tên "… and onward" → lặp điểm cuối; nhãn `Extra Battle <N+k>`; luật xoay `leader.rules[(n - số stage) % 3]` |
-| `battle_start_at` | phase `Battle` (giờ datamine là **UTC**, 06:00 = reset) |
-| vé ngày 1 / mỗi ngày / số ngày | theo thông báo chính thức ([Update_8010_1W_2](https://pokemonmasters-game.com/en-US/announcements/Update_8010_1W_2)): **9 vé lúc mở Battle, +3 mỗi ngày đến hết Battle, tối đa 30 vé/người, cả Gym dùng tối đa 600 vé** — mặc định trong `TICKET_DEFAULT`, sửa được theo mùa (`days` để trống = tính từ độ dài phase Battle) |
-| `tickets_used` 1–3 | Circuit thường (`kind` "Regular Battle") **luôn 3 vé/lượt**; từ Extra Battle chọn ×1/×2/×3 (thời gian + Sync buff từ `gym.tickets`) — `round(n).fixed` |
-
-**Chỉ lưu dữ kiện gốc, mọi thứ khác tính lại mỗi lần vẽ** (`gvgCtx`): điểm từng (round, map), chuỗi round (round đầu tiên chưa đủ 8 map = active), vé đã phát `day1 + daily × min(ngày đã qua, days)`, Combined Score (bỏ điểm người bị khoá; tiến độ map vẫn tính họ). Vì không lưu `current_points`/`round_status` nên không có transaction/recompute và không thể lệch khi sửa/xoá lượt — round đã xong tự mở lại nếu điểm tụt.
-
-**Kiểm tra khi ghi** (`gvgValidate`, giống Edge Case Matrix của PRD): vé 1–3 (đúng 3 ở Circuit thường), còn vé của người đó và của cả Gym (600), điểm nguyên dương, lượt mới chỉ cho round đang mở, người bị khoá không ghi mới, đủ vé, không vượt trần (báo còn thiếu bao nhiêu), team 1–3 pair không trùng, Move Level ≤ 5/5 nếu pair không có Superawakened (6/5–10/5 = SA1–5), EXR chỉ khi pair có EX Role, Lv 1–200. Sửa lượt: loại trừ chính lượt đó khi tính vé/trần.
-
-**Dữ liệu** (`localStorage['pmex-gvg']`):
-
-```js
-{ v: 1, active, seasons: [{ id, guild, gym, tickets: { day1, daily, days }, u,
-  members: [{ id, name, banned, u }],
-  entries: [{ id, at, u, m, r, map, t, p, team: [{ id, name, ml, lv, ex }] }],  // team = snapshot lúc ghi
-  profiles: { memberId: { pairId: { ml, lv, ex } } },                           // invest gần nhất để tự điền
-  notes: { leaderName: text },                                                   // ghi chú chiến thuật từng map (≈ `note` của map bên gvg-app)
-  gone: [id…] }] }                                                              // tombstone cho gộp file
-```
-
-- **Chia sẻ**: Export/Import JSON; Import *gộp* hợp nhất theo `id` (bản có `u` mới hơn thắng, `gone` lan truyền việc xoá) để nhiều admin nhập song song. Link chỉ-xem `#/gvg/v~<deflate-raw + base64url của mùa>` (không dùng `/` để hợp router); mở ra chỉ có Dashboard + Lịch sử, nút "Lưu vào máy của tôi" gộp vào dữ liệu local.
-- **Mùa mới** chép roster cũ trừ người bị khoá; mùa cũ giữ để xem lại.
-- Dashboard: điểm yếu (weakness của các unit) đóng khung riêng trên từng map; nút "＋ Ghi lượt" mở form với map chọn sẵn; mục "Còn vé" liệt kê người còn vé (bấm để ghi cho người đó); 📝 ghi chú theo map.
-- Team: ô tìm pair xếp hạng theo spec (trainer bắt đầu bằng → pokémon bắt đầu bằng → chứa → pair thành viên vừa dùng), 10 kết quả; "Dùng lại team gần nhất".
-- `app.js` boot chạy ở `DOMContentLoaded` để `gvg.js` (nạp sau) kịp đăng ký `routes.gvg`.
-
-Test: chạy `python -m http.server 8765` ở **thư mục gốc repo**, mở `/test/gvg.test.html` (34 kiểm tra logic: round chain, lặp/xoay luật, vé 9+3/ngày, trần 30/người & 600/Gym, 3 vé cố định ở Circuit thường, ban, reopen, share, gộp) và `/test/gvg.e2e.html` (13 bước thao tác thật trong iframe — ghi đè dữ liệu GvG của origin localhost). Mọi dòng phải là PASS.
 
 ## Quy ước style
 

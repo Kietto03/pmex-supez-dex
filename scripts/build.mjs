@@ -499,7 +499,7 @@ if (poma) {
       const onDm = f => f.kind === 'mega' && Object.keys(dm.megaStats || {}).length ? dm.megaStats
         : f.scale ? Object.fromEntries(Object.entries(dm.stats).map(([lv, row]) => [lv, Object.fromEntries(Object.entries(row)
           .map(([k, v]) => [k, Math.floor(v * (f.scale[SCALE_ORDER.indexOf(k)] ?? 100) / 100)]))])) : f.stats;
-      Object.assign(dm, { pomaId: q.pomaId, actorId: q.actorId, shiny: dm.shiny || q.shiny, category: q.category || dm.category,
+      Object.assign(dm, { pomaId: q.pomaId, actorId: q.actorId, shiny: dm.shiny || q.shiny, maxBonus: q.maxBonus, category: q.category || dm.category,
         altForms: q.altForms.map(f => ({ ...f, stats: onDm(f) })) });
       // Tera details the datamine block didn't carry
       if (!dm.teraType && q.teraType) dm.teraType = q.teraType;
@@ -750,9 +750,12 @@ fs.writeFileSync(MISS_FILE, JSON.stringify([...misses].sort(), null, 1));
 // ─── Output ─────────────────────────────────────────────────
 // data.js keeps a light summary of every pair (list, filters, charts);
 // full details (moves, passives, grid…) go to data/pairs/<id>.js, loaded when a pair is opened.
+// Pairs only in the datamine: a Superawakened passive means the pair can go past 5/5
+for (const p of finalPairs) if (!p.maxBonus) p.maxBonus = p.superPassive || p.dates?.Superawakened ? 10 : 5;
+
 const SUMMARY_KEYS = ['id', 'key', 'number', 'trainer', 'pokemon', 'gender', 'shiny', 'form', 'version', 'versions', 'source',
   'gridOnly', 'gridVersion', 'role', 'exRole', 'type', 'weakness', 'rarity', 'teamSkills', 'dates', 'stats', 'megaStats',
-  'exColor', 'method', 'category', 'pokeSprite', 'trainerSprite', 'teraType', 'mechanics'];
+  'exColor', 'method', 'category', 'pokeSprite', 'trainerSprite', 'teraType', 'mechanics', 'maxBonus'];
 const summaries = finalPairs.map(p => ({
   ...Object.fromEntries(SUMMARY_KEYS.filter(k => p[k] !== undefined).map(k => [k, p[k]])),
   // Per-form moves / passives only ship in data/pairs/<id>.js

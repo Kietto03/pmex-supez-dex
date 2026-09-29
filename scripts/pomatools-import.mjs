@@ -201,7 +201,8 @@ export function loadPomatools(cacheDir, dataminePairs) {
       version: null, versions: [], source: 'pomatools',
       dialog: '', description: '',
       role, exRole: EX_ROLES[m.exRole] || '', type: TYPES[mon.type] || TYPES[m.type] || '', weakness: TYPES[mon.weakness] || '',
-      rarity: m.rarity || 0, expedition: '', method: '', category: CATEGORIES[m.exclusivity] || '', itemExchange: '', collectInfo: '',
+      rarity: m.rarity || 0, maxBonus: pair.trainer?.maxBonusLevel || 5, // 10 ⇔ can Superawaken (bonus 6/5–10/5)
+      expedition: '', method: '', category: CATEGORIES[m.exclusivity] || '', itemExchange: '', collectInfo: '',
       exColor: false, teamSkills: (pair.themes || []).map(th => t('theme_name', th.name)).filter(Boolean),
       dates,
       moves: mon.moves.map((id, i) => moveOf(id, i + 1)), syncMove: mon.syncMove && mon.syncMove !== '0' ? moveOf(mon.syncMove, 'Sync') : null,
