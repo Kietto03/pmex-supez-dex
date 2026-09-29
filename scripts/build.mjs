@@ -733,7 +733,11 @@ async function attachSprites() {
   for (const g of gyms) {
     const leaders = [...new Set(g.stages.flatMap(s => s.leaders.map(l => l.name)))];
     g.leaderSprites = {};
-    for (const l of leaders) g.leaderSprites[l] = await sprite('trainers', trainerCandidates(l));
+    // Gym Leaders as they look in PMEX (the "-masters" sprite) when Showdown has one
+    for (const l of leaders) {
+      const c = trainerCandidates(l);
+      g.leaderSprites[l] = await sprite('trainers', [...c.filter(x => x.endsWith('-masters')), ...c]);
+    }
   }
   // Pixel item icons for UI decoration
   const items = ['poke-ball', 'great-ball', 'ultra-ball', 'master-ball', 'rare-candy', 'exp-share', 'star-piece', 'rainbow-wing'];
