@@ -769,6 +769,37 @@ for (const p of finalPairs) {
   fs.writeFileSync(path.join(OUT_PAIRS, `${p.id}.js`), `window.PMEX_PAIR_LOADED(${JSON.stringify(p.id)}, ${JSON.stringify(p)});\n`);
 }
 
+// Battle tags for other tools (the Gym Manager roster sheet), read from move / passive / grid text:
+//   wtz    – what weather, terrain or zone the pair can set ("Sunny", "Electric Terrain", "Poison Zone")
+//   rebuff – which Type Rebuffs it can lower on the opponents ("Poison")
+const pairTags = {};
+for (const p of finalPairs) {
+  const texts = [];
+  const walk = o => { if (typeof o === 'string') texts.push(o); else if (o && typeof o === 'object') for (const v of Object.values(o)) walk(v); };
+  walk([p.moves, p.syncMove, p.passives, p.superPassive, p.teraPassives, p.teraMoves, p.megaMoves, p.grid]);
+  const wtz = new Set(), rebuff = new Set();
+  for (const sentence of texts.join(' ').split(/(?<=\.)\s+/)) {
+    for (const m of sentence.matchAll(/Lowers the (\w+) Type Rebuff of (?:the target|all opponents|the opponents?|all opposing)/g)) rebuff.add(m[1]);
+    for (const m of sentence.matchAll(/Lowers the target[’'`]s (\w+) Type Rebuff/g)) rebuff.add(m[1]);
+    if (/Lowers the target[’'`]s Type Rebuff of its weakness type/.test(sentence)) rebuff.add('Weakness');   // works for any type
+    if (/^\s*(Extends|Activation|Deactivation)/i.test(sentence) || !/\b(turns|changes|sets|makes|causes)\b/i.test(sentence)) continue;
+    // "EX" versions (EX Dark Zone, EX sunny…) are the stronger 6★ EX effects: keep the prefix
+    for (const m of sentence.matchAll(/zone into an? (EX )?(\w+) Zone/gi)) wtz.add(`${m[1] ? 'EX ' : ''}${m[2]} Zone`);
+    for (const m of sentence.matchAll(/terrain into (EX )?(Electric|Grassy|Psychic|Misty) Terrain/gi)) wtz.add(`${m[1] ? 'EX ' : ''}${m[2]} Terrain`);
+    const w = sentence.match(/(?:makes|turns|changes) the weather (?:to |into )?(EX )?(sunny|rainy|rain|a sandstorm|sandstorm|hail|snowy|snow)\b/i);
+    const c = sentence.match(/causes an? (EX )?(sandstorm|hailstorm)\b/i);
+    if (c) wtz.add((c[1] ? 'EX ' : '') + (/sand/i.test(c[2]) ? 'Sandstorm' : 'Hail'));
+    if (w) wtz.add((w[1] ? 'EX ' : '') + { sunny: 'Sunny', rainy: 'Rain', rain: 'Rain', 'a sandstorm': 'Sandstorm', sandstorm: 'Sandstorm', hail: 'Hail', snowy: 'Snow', snow: 'Snow' }[w[2].toLowerCase()]);
+  }
+  if (!wtz.size && !rebuff.size) continue;
+  const key = `${p.trainer}|${p.pokemon}`.toLowerCase();
+  const t = pairTags[key] ||= { wtz: [], rebuff: [] };
+  t.wtz = [...new Set([...t.wtz, ...wtz])];
+  t.rebuff = [...new Set([...t.rebuff, ...rebuff])];
+}
+fs.writeFileSync(path.join(SITE, 'data', 'pair-tags.json'), JSON.stringify(pairTags));
+console.log(`pair tags: ${Object.keys(pairTags).length} pairs (${Object.values(pairTags).filter(t => t.wtz.length).length} set weather/terrain/zone, ${Object.values(pairTags).filter(t => t.rebuff.length).length} lower a Type Rebuff)`);
+
 const data = {
   builtAt: new Date().toISOString(),
   versions,
