@@ -776,7 +776,7 @@ const pairTags = {};
 for (const p of finalPairs) {
   const texts = [];
   const walk = o => { if (typeof o === 'string') texts.push(o); else if (o && typeof o === 'object') for (const v of Object.values(o)) walk(v); };
-  walk([p.moves, p.syncMove, p.passives, p.superPassive, p.teraPassives, p.teraMoves, p.megaMoves, p.grid]);
+  walk([p.moves, p.syncMove, p.passives, p.superPassive, p.teraPassives, p.teraMoves, p.megaMoves, p.grid, p.altForms]);   // altForms: Primal, Mega, Gigantamax… effects count too
   const wtz = new Set(), rebuff = new Set();
   for (const sentence of texts.join(' ').split(/(?<=\.)\s+/)) {
     for (const m of sentence.matchAll(/Lowers the (\w+) Type Rebuff of (?:the target|all opponents|the opponents?|all opposing)/g)) rebuff.add(m[1]);
