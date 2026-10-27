@@ -11,7 +11,7 @@
     "setup-data": "git clone https://github.com/absolutelypm/pokemas-datamine.git datamine",
     "update-data": "git -C datamine pull --ff-only",
     "crawl": "node scripts/crawl-pomatools.mjs",
-    "build": "node scripts/build.mjs",
+    "build": "node scripts/build.mjs && node scripts/build-pair-index.mjs",
     "match-outfits": "node scripts/match-outfits.mjs",
     "serve": "python3 -m http.server 8765 -d site"
   }

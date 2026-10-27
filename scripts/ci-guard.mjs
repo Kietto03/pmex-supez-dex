@@ -38,12 +38,12 @@ export function compare(before, after) {
   }
   return bad;
 }
-// Did the build change anything but its own timestamp? (data.js and gyms.json carry "builtAt")
+// Did the build change anything but its own timestamp? (data.js, gyms.json and pair-index.json carry the build time)
 export function meaningfulChange() {
   const files = execFileSync('git', ['status', '--porcelain', '--', 'site', 'config'], { encoding: 'utf8' }).split('\n').filter(Boolean).map(l => l.slice(3));
-  const strip = x => x.replace(/"builtAt":"[^"]*"/g, '"builtAt":""');
+  const strip = x => x.replace(/"(builtAt|dexBuilt)":"[^"]*"/g, '"$1":""');
   return files.filter(f => {
-    if (!/site\/data\/(data\.js|gyms\.json)$/.test(f)) return true;
+    if (!/site\/data\/(data\.js|gyms\.json|pair-index\.json)$/.test(f)) return true;
     try { return strip(execFileSync('git', ['show', `HEAD:${f}`], { encoding: 'utf8', maxBuffer: 1 << 28 })) !== strip(fs.readFileSync(f, 'utf8')); } catch { return true; }
   });
 }
