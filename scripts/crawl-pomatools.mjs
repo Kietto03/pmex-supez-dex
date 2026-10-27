@@ -25,8 +25,11 @@ const INDEX_FILES = [
   'data/sync_meta_list.json',
   'data/core/move_database.json',
   'data/core/passive_database.json',
-  'locales/en.json',
 ];
+// PoMaTools used to publish one locales/en.json. It now serves the English text in modules; the build still reads
+// the single file, so the modules are merged back into it here (an old copy is kept if a module cannot be read).
+const LOCALE_MODULES = ['common', 'base', 'moves', 'passives', 'tiles', 'events'];
+const LOCALE_ONLY = process.argv.includes('--locale-only');
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
@@ -49,7 +52,25 @@ async function get(rel, { force = false } = {}) {
   }
 }
 
+async function fetchLocale() {
+  const dest = path.join(OUT, 'locales/en.json');
+  if (!REFRESH && fs.existsSync(dest)) return 'cached';
+  const merged = {};
+  for (const m of LOCALE_MODULES) {
+    const r = await fetch(`${BASE}/locales/modules/en/${m}.json`, { headers: HEADERS }).catch(() => null);
+    if (!r?.ok || !(r.headers.get('content-type') || '').includes('json')) return `module ${m} missing${fs.existsSync(dest) ? ' (kept the old file)' : ''}`;
+    Object.assign(merged, await r.json());   // flat keys: a later module never needs to merge into an earlier one
+  }
+  if (Object.keys(merged).length < 30000) return `only ${Object.keys(merged).length} texts${fs.existsSync(dest) ? ' (kept the old file)' : ''}`;
+  fs.mkdirSync(path.dirname(dest), { recursive: true });
+  fs.writeFileSync(dest, JSON.stringify(merged));
+  return `ok (${Object.keys(merged).length} texts)`;
+}
 for (const f of INDEX_FILES) console.log(f, await get(f, { force: REFRESH }));
+const localeResult = await fetchLocale();
+console.log('locales/en.json', localeResult);
+if (!fs.existsSync(path.join(OUT, 'locales/en.json'))) { console.error('No English texts: the build cannot run.'); process.exit(1); }
+if (LOCALE_ONLY) process.exit(0);
 
 const meta = JSON.parse(fs.readFileSync(path.join(OUT, 'data/sync_meta_list.json'), 'utf8'));
 const ids = Object.keys(meta);
