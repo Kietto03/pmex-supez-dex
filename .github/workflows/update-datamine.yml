@@ -1,0 +1,84 @@
+name: Update from the datamine
+
+# Every day (and on demand): pull the dataminer's repo, rebuild the site data and publish it when something
+# really changed. A safety check refuses to publish if the new build lost anything the site already had.
+# The gym manager (Kietto03/pmex-gym-manager) reads site/data/*.json from this site.
+on:
+  schedule:
+    - cron: "40 3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: update-datamine
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Cache the PoMaTools crawl
+        uses: actions/cache@v4
+        with:
+          path: |
+            .cache/pomatools
+            site/assets/.missing.json
+          key: pomatools-${{ github.run_id }}
+          restore-keys: pomatools-
+      - name: Get the datamine
+        run: git clone --depth 1 https://github.com/absolutelypm/pokemas-datamine.git datamine
+      - name: Is there anything new to build?
+        id: news
+        # The build takes about ten minutes (it checks every sprite), so it only runs when the datamine moved,
+        # on Mondays (to pick up new PoMaTools pairs) or when started by hand.
+        run: |
+          now=$(git -C datamine rev-parse HEAD); old=$(cat config/datamine-sha.txt 2>/dev/null || true)
+          if [ "$now" != "$old" ] || [ "${{ github.event_name }}" = "workflow_dispatch" ] || [ "$(date -u +%u)" = "1" ]; then echo "build=true" >> "$GITHUB_OUTPUT"; else echo "build=false" >> "$GITHUB_OUTPUT"; echo "The datamine has not changed since $old: nothing to do." | tee -a "$GITHUB_STEP_SUMMARY"; fi
+          echo "$now" > "$RUNNER_TEMP/datamine-sha.txt"
+      - name: Remember what the site has now
+        if: steps.news.outputs.build == 'true'
+        run: node scripts/ci-guard.mjs snapshot "$RUNNER_TEMP/before.json"
+      - name: Crawl PoMaTools (only new pairs are downloaded)
+        if: steps.news.outputs.build == 'true'
+        continue-on-error: true      # the build still works from the cache, and from the datamine alone
+        run: npm run crawl -- --refresh
+      - name: Build
+        if: steps.news.outputs.build == 'true'
+        run: npm run build
+      - name: Did anything really change?
+        id: diff
+        if: steps.news.outputs.build == 'true'
+        run: |
+          if node scripts/ci-guard.mjs changed; then echo "changed=true" >> "$GITHUB_OUTPUT"; else echo "changed=false" >> "$GITHUB_OUTPUT"; git checkout -- site config; fi
+      - name: Record that this datamine version was checked
+        if: steps.diff.outputs.changed == 'false'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          cp "$RUNNER_TEMP/datamine-sha.txt" config/datamine-sha.txt
+          git add config/datamine-sha.txt
+          if ! git diff --cached --quiet; then git commit -qm "Datamine checked: no change to the site (automatic)"; git pull --rebase origin main; git push origin HEAD:main; fi
+      - name: Safety check (refuse to publish a build that lost data)
+        if: steps.diff.outputs.changed == 'true'
+        run: node scripts/ci-guard.mjs compare "$RUNNER_TEMP/before.json" | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Commit and publish
+        if: steps.diff.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          cp "$RUNNER_TEMP/datamine-sha.txt" config/datamine-sha.txt
+          git add site config
+          git commit -m "Update from the datamine ($(git -C datamine log -1 --format=%h)) (automatic)"
+          git pull --rebase origin main
+          git push origin HEAD:main
+          gh workflow run deploy.yml --ref main
