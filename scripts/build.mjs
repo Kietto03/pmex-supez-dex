@@ -265,6 +265,7 @@ function parseGrids(text) {
       continue;
     }
     if (!cell) continue;
+    if (/^[=-]{8,}.*[=-]{8,}$|^[=-]{12,}$/.test(line)) continue;   // the dataminer's END separator after the last cell of a pair is not a tile title
     if (line.startsWith('Requirements:')) cell.req.push(line.replace('Requirements:', '').trim());
     else if (line.includes('Other Require Unlock')) cell.unlock = true;
     else if (cell.unlock && /^\d+\.\s/.test(line)) cell.req.push('Unlock: ' + line.replace(/^\d+\.\s*/, ''));
