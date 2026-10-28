@@ -134,7 +134,7 @@ function loadPairDetail(id) {
   if (pairDetail[id]) return Promise.resolve(pairDetail[id]);
   return new Promise((resolve, reject) => {
     const el = document.createElement('script');
-    el.src = `data/pairs/${encodeURIComponent(id)}.js`;
+    el.src = `data/pairs/${encodeURIComponent(id)}.js?v=${encodeURIComponent(D.builtAt)}`;
     el.onload = () => pairDetail[id] ? resolve(pairDetail[id]) : reject(new Error('empty'));
     el.onerror = () => reject(new Error('missing'));
     document.head.appendChild(el);
@@ -1596,8 +1596,8 @@ document.addEventListener('click', e => {
 });
 
 // ─── Boot ───────────────────────────────────────────────────
-// Deferred until every script tag has run
-addEventListener('DOMContentLoaded', () => {
+// The fresh data loader may finish after DOMContentLoaded.
+function boot() {
 if (!D) {
   view.innerHTML = `<div class="empty">${img(PLACEHOLDER)}Chưa có <code>data/data.js</code>. Chạy <code>npm run build</code> ở thư mục gốc repo.</div>`;
 } else {
@@ -1605,4 +1605,6 @@ if (!D) {
   renderThemePicker();
   route();
 }
-});
+}
+if (document.readyState === 'loading') addEventListener('DOMContentLoaded', boot, { once: true });
+else boot();
