@@ -22,6 +22,7 @@ for (const p of data.pairs.filter(p => p.versions.includes(latest))) {
   vm.runInNewContext(fs.readFileSync(path.join(root, 'site/data/pairs', `${p.id}.js`), 'utf8'), context);
 }
 let passiveCount = 0;
+let maxCount = 0;
 for (const block of read(/Trainer\.txt$/).split(/-------------------------------END-------------------------------/)) {
   const key = block.match(/^No\.\s*\d+\s+.+$/m)?.[0].trim();
   if (!key) continue;
@@ -34,10 +35,18 @@ for (const block of read(/Trainer\.txt$/).split(/-------------------------------
     assert.ok(parsed.some(p => p.name === name && p.description), `Missing passive: ${key} / ${name}`);
     passiveCount++;
   }
+  for (const match of block.matchAll(/^(?:🔥\s*)?Max Move\s+(\d+):\s*(.+)$/gm)) {
+    const slot = Number(match[1]), name = match[2].trim();
+    const kind = name.startsWith('G-Max') ? 'gigantamax' : 'dynamax';
+    const form = pair.altSprites?.find(f => f.kind === kind);
+    assert.ok(form?.maxMoves?.some(m => m.fromSlot === slot && m.name === name && m.description),
+      `Missing Max Move: ${key} / slot ${slot} / ${name}`);
+    maxCount++;
+  }
 }
 const ids = [...read(/Sync Pair Scout\.txt$/).matchAll(/^\[(event_[^\]]+)\]\s*$/gm)].map(m => m[1]);
 for (const id of ids) {
   const scout = data.scouts.find(s => s.id === id);
   assert.ok(scout?.title && scout.scoutType && scout.start, `Missing/incomplete scout: ${id}`);
 }
-console.log(`Source check v${latest}: ${passiveCount} passives and ${ids.length} scouts preserved.`);
+console.log(`Source check v${latest}: ${passiveCount} passives, ${maxCount} Max Moves and ${ids.length} scouts preserved.`);

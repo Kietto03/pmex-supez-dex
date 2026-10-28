@@ -128,6 +128,7 @@ function parseTrainers(text, version) {
     const pushMove = () => {
       if (!move) return;
       if (section === 'tera') t.teraMoves.push(move);
+      else if (section === 'max_moves') (t.maxMoves ||= []).push({ ...move, slot: 'Max', fromSlot: move.slot });
       else if (section === 'mega_moves') t.megaMoves.push(move);
       else if (move.isSync) t.syncMove = move;
       else t.moves.push(move);
@@ -170,6 +171,7 @@ function parseTrainers(text, version) {
 
       if (line.includes('⚔️ Moves Details')) { section = 'moves'; continue; }
       if (line.includes('⚔️ Mega Moves Details')) { pushMove(); section = 'mega_moves'; continue; }
+      if (line.includes('Max Moves Details')) { pushMove(); section = 'max_moves'; continue; }
       if (line.includes('Tera Moves Details')) { pushMove(); section = 'tera'; continue; }
       if (line.includes('Passives Details') && section === 'tera') { pushMove(); section = 'tera_passives'; continue; }
       if (line.includes('🛡️ Passive Details')) { pushMove(); section = 'passives'; continue; }
@@ -177,8 +179,8 @@ function parseTrainers(text, version) {
       if (line.includes('Mega Stats')) { section = 'mega_stats'; continue; }
       if (line.includes('📌')) continue;
 
-      if (['moves', 'mega_moves', 'tera'].includes(section)) {
-        const mm = line.match(/^(?:💎\s*Tera Move|Move (\d+)|Sync Move):\s*(.+)$/);
+      if (['moves', 'mega_moves', 'tera', 'max_moves'].includes(section)) {
+        const mm = line.match(/^(?:💎\s*Tera Move|(?:🔥\s*Max )?Move (\d+)|Sync Move):\s*(.+)$/);
         if (mm) {
           pushMove();
           move = {
@@ -695,6 +697,10 @@ async function attachSprites() {
     // Datamine-only pairs (no PoMaTools variants) only have the datamine's "Mega Stats" block — which the
     // dataminer also uses for Zygarde Complete, Noice Face, Dynamax… — so it's a Mega only when a Mega sprite exists.
     const forms = [...(p.altForms || [])];
+    if (p.maxMoves?.length && !forms.some(f => ['dynamax', 'gigantamax'].includes(f.kind))) {
+      forms.push({ kind: p.maxMoves.some(m => /^G-Max/.test(m.name)) ? 'gigantamax' : 'dynamax',
+        pokemon: p.pokemon, form: p.form, maxMoves: p.maxMoves });
+    }
     if (!p.pomaId && !forms.length && Object.keys(p.megaStats || {}).length) {
       const megaSpr = await sprite(p.shiny ? 'pokemon-shiny' : 'pokemon', pokemonCandidates(`Mega ${p.pokemon}`, ''));
       forms.push(megaSpr
