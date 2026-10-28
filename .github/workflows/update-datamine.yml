@@ -54,9 +54,11 @@ jobs:
         if: steps.news.outputs.build == 'true'
         run: npm run build
       - name: Did anything really change?
+        # Compare with the raw source before recording its SHA or publishing.
         id: diff
         if: steps.news.outputs.build == 'true'
         run: |
+          node scripts/check-datamine.mjs
           if node scripts/ci-guard.mjs changed; then echo "changed=true" >> "$GITHUB_OUTPUT"; else echo "changed=false" >> "$GITHUB_OUTPUT"; git checkout -- site config; fi
       - name: Record that this datamine version was checked
         if: steps.diff.outputs.changed == 'false'

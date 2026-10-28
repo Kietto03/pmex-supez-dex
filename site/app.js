@@ -57,6 +57,7 @@ const GRID_COLORS = {
 };
 
 const SCOUT_CATS = [
+  { id: 'arc', label: 'Arc Suit Fair', c: '#b58a26', test: t => /Arc\s+suit\s+Fair/i.test(t) },
   { id: 'exmaster', label: 'EX Master Fair', c: '#c2185b', test: t => /EX Master/.test(t) },
   { id: 'ex', label: 'EX Fair', c: '#7b3fe4', test: t => /EX Fair/.test(t) },
   { id: 'master', label: 'Master Fair', c: '#d4a106', test: t => /Master Fair|Master Day/.test(t) },
@@ -789,7 +790,7 @@ function passivesPanel(p) {
     <h2 class="section-title">Passives${v.alt ? ` <span class="count">${esc(mechOf(v.alt).short)}</span>` : ''}</h2>
     <div class="passives">
       ${p.superPassive ? passiveCard({ ...p.superPassive, label: '🌅 Superawakened' }, 'super') : ''}
-      ${v.passives.map(x => passiveCard({ ...x, label: `Passive ${x.slot}${x.master ? ' 🏅' : ''}` }, '', mech(x))).join('')}
+      ${v.passives.map(x => passiveCard({ ...x, label: `Passive ${x.slot}${x.arc ? ' ✨' : x.master ? ' 🏅' : ''}` }, '', mech(x))).join('')}
       ${v.extraPassives.map(x => passiveCard({ ...x, label: typeof x.slot === 'number' ? `💎 Tera Passive ${x.slot}` : '💎 Tera Passive' }, 'tera', mech(x))).join('')}
     </div>`;
 }

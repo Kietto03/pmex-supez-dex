@@ -207,12 +207,12 @@ function parseTrainers(text, version) {
 
       if (section === 'passives' || section === 'tera_passives') {
         const sp = line.match(/Superawakened Passive:\s*(.+)$/);
-        const pm = line.match(/^Passive\s+(\d+)(\(🏅\))?:\s*(.+)$/);
+        const pm = line.match(/^Passive\s+(\d+)(?:\(([^)]*)\))?:\s*(.+)$/);
         if (sp || pm) {
           const desc = lines[i + 1] && !/^(Passive\s+\d|📊|\(🌅)/.test(lines[i + 1]) && lines[i + 1] !== '-' ? lines[++i] : '';
           if (sp) t.superPassive = { name: sp[1].trim(), description: desc };
           else (section === 'tera_passives' ? t.teraPassives : t.passives)
-            .push({ slot: +pm[1], master: !!pm[2], name: pm[3].trim(), description: desc });
+            .push({ slot: +pm[1], master: !!pm[2]?.includes('🏅'), ...(pm[2]?.includes('✨') ? { arc: true } : {}), name: pm[3].trim(), description: desc });
         }
         continue;
       }
