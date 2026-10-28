@@ -227,6 +227,13 @@ function parseTrainers(text, version) {
     if (tera) t.teraType = tera[1];
     out.push(t);
   }
+  // Some sources put distinct selectable forms under identical headers.
+  // Include the form in their keys so assembly cannot overwrite one with another.
+  const keyCounts = new Map();
+  for (const t of out) keyCounts.set(t.key, (keyCounts.get(t.key) || 0) + 1);
+  for (const t of out) {
+    if (keyCounts.get(t.key) > 1 && t.form) t.key += ` - ${t.form}`;
+  }
   return out;
 }
 
