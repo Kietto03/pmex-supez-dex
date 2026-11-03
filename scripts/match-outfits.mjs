@@ -32,6 +32,7 @@ const CHROME = process.env.CHROME || [
   '/usr/bin/google-chrome',
 ].find(p => fs.existsSync(p));
 const HEADERS = { 'User-Agent': 'pmex-datamine-dex/1.0 (fan viewer)' };
+const REFRESH = process.argv.includes('--refresh');
 fs.mkdirSync(path.join(OUT, 'icons'), { recursive: true });
 fs.mkdirSync(path.join(OUT, 'cand'), { recursive: true });
 
@@ -39,7 +40,7 @@ const slug = s => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').repla
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 async function download(url, dest) {
-  if (fs.existsSync(dest)) return true;
+  if (fs.existsSync(dest) && !REFRESH) return true;
   const r = await fetch(url, { headers: HEADERS });
   if (!r.ok || !(r.headers.get('content-type') || '').startsWith('image/')) return false;
   fs.writeFileSync(dest, Buffer.from(await r.arrayBuffer()));
@@ -49,21 +50,24 @@ async function download(url, dest) {
 
 // Showdown's trainer sprite index (directory listing)
 const listFile = path.join(OUT, 'showdown-trainers.txt');
-if (!fs.existsSync(listFile)) {
+if (!fs.existsSync(listFile) || REFRESH) {
   const html = await (await fetch('https://play.pokemonshowdown.com/sprites/trainers/', { headers: HEADERS })).text();
   fs.writeFileSync(listFile, [...html.matchAll(/href="([^"]+)\.png"/g)].map(m => m[1]).join('\n'));
 }
 const showdown = fs.readFileSync(listFile, 'utf8').split('\n').filter(Boolean);
 
 const poma = loadPomatools(path.join(REPO, '.cache', 'pomatools'), []);
-const special = poma.pairs.filter(p => /\(|Sygna Suit|Arc Suit/.test(p.trainer) && p.actorId);
+const special = poma.pairs.filter(p => p.actorId && (/\(|Sygna Suit|Arc Suit/.test(p.trainer)
+  || ['The Masked Royal', 'Volo', 'Elesa'].includes(p.trainer)));
+const aliases = { themaskedroyal: 'theroyal' };
 
 const jobs = [];
 for (const p of special) {
-  const base = slug(p.trainer.replace(/\(.*?\)/g, '').replace(/Sygna Suit|Arc Suit|^Professor\s+/gi, '').trim());
-  // Every Showdown sprite of this character, except old-generation looks that can't be PMEX outfits
-  const cands = showdown.filter(n => (n === base || n.startsWith(base + '-')) && !/gen[1-3]|lgpe|anime|jp$/.test(n));
-  if (!cands.some(n => n.includes('masters') || /festival|dojo|champion|s$|v$/.test(n.split('-')[1] || ''))) continue;
+  const rawBase = slug(p.trainer.replace(/\(.*?\)/g, '').replace(/Sygna Suit|Arc Suit|^Professor\s+/gi, '').trim());
+  const base = aliases[rawBase] || rawBase;
+  // Classic outfits may be filed under an old game, and aliases need not use "masters".
+  const cands = showdown.filter(n => n === base || n.startsWith(base + '-'));
+  if (!cands.length) continue;
   const icon = `${p.actorId}.png`;
   if (!await download(`https://www.pomatools.site/assets/trainer/${p.actorId}_128.png`, path.join(OUT, 'icons', icon))) continue;
   for (const c of cands) await download(`https://play.pokemonshowdown.com/sprites/trainers/${c}.png`, path.join(OUT, 'cand', `${c}.png`));

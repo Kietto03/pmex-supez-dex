@@ -24,3 +24,24 @@ Compared the current directory with the previous review: no new filenames. Downl
 | Lana (New Year’s 2026) | lana-masters2 |
 
 Other unresolved outfits retain their existing fallback. Arc Suit Gladion/Hau, Bea (Alt.) and Victor (Academy) have no newly available dedicated sprite in the checked directory.
+
+## Second pass: aliases and old game names
+
+Checked the full 1,500-name Showdown directory, including non-Masters and generation-specific IDs, against fresh PoMaTools portraits. Verified mappings:
+
+| Trainer | Sprite |
+|---|---|
+| The Masked Royal | theroyal |
+| Volo | volo-ginkgo |
+| Volo (Alt.) | volo |
+| Elesa | elesa-gen5bw2 |
+| Elesa (Classic) | elesa |
+| Blue (Classic) | blue-gen3 |
+| Giovanni (Classic) | giovanni-gen3 |
+| Marnie (Alt.) | marnie-league |
+| Gloria (Anniversary 2025) | gloria-masters2 |
+| Sygna Suit Carmine | carmine-masters |
+
+Elesa (Classic) and Volo (Alt.) already used these images; explicit mappings keep them distinct from the corrected default appearances. This changes 11 pair records across 8 trainer appearances. Red (1996), Misty (Swimsuit) and Flannery (Special Costume) remain unresolved: old-game candidates do not establish an exact match to their PMEX outfit.
+
+The review script now includes aliases, old-generation candidates and sprites without a Masters suffix; `npm run match-outfits -- --refresh` refreshes the directory and image cache. Visual confirmation is still required before changing mappings.

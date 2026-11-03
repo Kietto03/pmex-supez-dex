@@ -607,7 +607,7 @@ function customTrainerSprite(name) {
 // Name with an outfit marker ("(Alt.)", "(Fall 2026)", "Sygna Suit …") → that outfit's sprite
 // when one exists, otherwise fall back to the default outfit.
 // Names whose Showdown sprite has a different id
-const TRAINER_ALIASES = { themaskedroyal: 'kukui', jessie: 'jessiejames-gen1', james: 'jessiejames-gen1', clive: 'clive-v' };
+const TRAINER_ALIASES = { themaskedroyal: 'theroyal', jessie: 'jessiejames-gen1', james: 'jessiejames-gen1', clive: 'clive-v' };
 const GEN_SUFFIXES = ['', '-s', '-v', '-gen9', '-gen8', '-gen7', '-gen6', '-gen5', '-gen4', '-gen3'];
 
 function trainerCandidates(name, description = '') {
