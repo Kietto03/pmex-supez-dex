@@ -34,6 +34,12 @@ npm run serve           # http://localhost:8765
 Then commit `site/data`, `site/assets` (and `config/` if you verified new outfits). `datamine/` is never committed.
 Details and checks: [docs/update-workflow.md](docs/update-workflow.md). In Claude Code, `/update-datamine-web` runs the same procedure.
 
+## App settings
+
+Open **Settings** in the navigation to choose **English** (the default) or **Vietnamese (partial)**. The language is saved in the current browser. Vietnamese translates interface labels and help text while keeping trainer names, Pokémon, moves, passives and game terminology in English. Settings also includes the color themes.
+
+Interface translations live in `site/i18n.js`. Use `uiText()` for interface strings and the `ui` template tag for interface templates; interpolated game data is kept unchanged. Run `npm run test:i18n` to check language defaults, persistence and translation boundaries.
+
 ## Related
 
 [PMEX Gym Manager](https://github.com/Kietto03/pmex-gym-manager) — gym members, sync pairs, Pasio Tower and Gym Battle logs. It reads `site/data/gyms.json` from this site.

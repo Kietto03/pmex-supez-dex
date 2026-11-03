@@ -1,15 +1,15 @@
 <!DOCTYPE html>
-<html lang="vi" data-theme="night">
+<html lang="en" data-theme="night">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="description" content="Pokémon Masters EX Datamine — Sync Pairs, Sync Grids, Scouts theo tháng và Pasio Gym Battle dạng infographic pixel.">
+  <meta name="description" content="Pokémon Masters EX Datamine — Sync Pairs, Sync Grids, monthly Scouts and Pasio Gym Battles in a pixel infographic viewer.">
   <title>PMEX Datamine Dex</title>
   <link rel="icon" href="assets/items/poke-ball.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400;500;600;700&family=Press+Start+2P&family=Nunito:wght@400;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="styles.css?v=settings-1">
   <script>
     // Apply the saved theme before first paint to avoid a flash
     try {
@@ -26,10 +26,11 @@
       <span class="logo-text">PMEX<span class="logo-sub">DATAMINE DEX</span></span>
     </a>
     <nav class="nav" id="nav">
-      <a href="#/" data-route="home"><img src="assets/items/star-piece.png" alt="" class="px-img">Home</a>
+      <a href="#/" data-route="home"><img src="assets/items/star-piece.png" alt="" class="px-img"><span data-ui-label="Trang chủ">Home</span></a>
       <a href="#/pairs" data-route="pairs"><img src="assets/items/exp-share.png" alt="" class="px-img">Sync Pairs</a>
       <a href="#/scouts" data-route="scouts"><img src="assets/items/rainbow-wing.png" alt="" class="px-img">Scouts</a>
       <a href="#/gym" data-route="gym"><img src="assets/items/ultra-ball.png" alt="" class="px-img">Gym Battle</a>
+      <a href="#/settings" data-route="settings"><span aria-hidden="true">⚙</span><span data-ui-label="Cài đặt">Settings</span></a>
     </nav>
     <div class="theme-picker" id="theme-picker" role="radiogroup" aria-label="Theme"></div>
   </header>
@@ -45,17 +46,18 @@
 
   <div class="tooltip" id="tooltip" role="tooltip"></div>
 
+  <script src="i18n.js?v=settings-1"></script>
   <script>
     // Each visit loads a fresh index; app and details use that build's cache key.
     const dataScript = document.createElement('script');
     dataScript.src = `data/data.js?v=${Date.now()}`;
     const loadError = () => {
-      document.getElementById('view').textContent = 'Không tải được dữ liệu. Vui lòng tải lại trang.';
+      document.getElementById('view').textContent = window.PMEX_I18N.text('Không tải được dữ liệu. Vui lòng tải lại trang.');
     };
     dataScript.onerror = loadError;
     dataScript.onload = () => {
       const appScript = document.createElement('script');
-      appScript.src = `app.js?v=${encodeURIComponent(window.PMEX_DATA.builtAt)}`;
+      appScript.src = `app.js?v=${encodeURIComponent(window.PMEX_DATA.builtAt)}&ui=settings-1`;
       appScript.onerror = loadError;
       document.head.appendChild(appScript);
     };

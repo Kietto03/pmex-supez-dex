@@ -13,6 +13,7 @@
     "crawl": "node scripts/crawl-pomatools.mjs",
     "build": "node scripts/build.mjs && node scripts/build-pair-index.mjs",
     "match-outfits": "node scripts/match-outfits.mjs",
+    "test:i18n": "node --test scripts/i18n.test.mjs",
     "serve": "python3 -m http.server 8765 -d site"
   }
 }
