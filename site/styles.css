@@ -952,7 +952,7 @@ body { transition: background-color var(--t-med) var(--ease-out), color var(--t-
   position: relative; z-index: 1;
   transition: color var(--t-fast) var(--ease-out), border-color var(--t-fast) var(--ease-out), transform var(--t-fast) var(--ease-out);
 }
-.nav a img { transition: transform var(--t-med) var(--ease-spring); }
+.nav a img { transition: transform .25s var(--ease-spring); }
 .nav a:hover img { transform: translateY(-1px) scale(1.08); }
 .nav a:active { transform: translate(1px, 1px); }
 .nav-ink {
@@ -962,7 +962,7 @@ body { transition: background-color var(--t-med) var(--ease-out), color var(--t-
   border: 2px solid var(--line-strong);
   box-shadow: 3px 3px 0 var(--shadow);
   pointer-events: none;
-  transition: transform .5s var(--ease-out), width .5s var(--ease-out), height .5s var(--ease-out), opacity var(--t-med);
+  transition: transform .3s var(--ease-out), width .3s var(--ease-out), height .3s var(--ease-out), opacity var(--t-fast);
 }
 .nav:not(.has-ink) .nav-ink { display: none; }
 .nav.has-ink a.active { background: transparent; border-color: transparent; box-shadow: none; }
