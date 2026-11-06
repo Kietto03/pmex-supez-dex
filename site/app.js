@@ -1070,10 +1070,11 @@ function passiveCard(x, kind = '', mech = null) {
 // Every cell is a 14×16 px pointy-top hex drawn pixel by pixel (1 px outline, bevel, 5×5 icon),
 // then the canvas is scaled up by a whole number with image-rendering: pixelated,
 // so the map looks like a sprite rather than vector art.
-const HEX_W = 14, HEX_H = 16, STEP_X = 16, STEP_Y = 13, GRID_PAD = 6;
-// [x0, x1) of each pixel row: 3-row point, 10-row body, 3-row point (2 px slope → 2 px gaps when tiled)
+// Flat-top hexes, as in the game: columns 13 px apart, rows 16 px apart, odd columns shifted half a row
+const HEX_W = 16, HEX_H = 14, STEP_X = 13, STEP_Y = 16, GRID_PAD = 6;
+// [y0, y1) of each pixel column: 3-col point, 10-col body, 3-col point (2 px slope → 2 px gaps when tiled)
 const HEX_SPAN = [[6, 8], [4, 10], [2, 12], ...Array(10).fill([0, 14]), [2, 12], [4, 10], [6, 8]];
-const inHex = (x, y) => y >= 0 && y < HEX_H && x >= HEX_SPAN[y][0] && x < HEX_SPAN[y][1];
+const inHex = (x, y) => x >= 0 && x < HEX_W && y >= HEX_SPAN[x][0] && y < HEX_SPAN[x][1];
 // 0 = outside, 1 = outline, 2 = bevel ring, 3 = fill
 const HEX_MASK = Array.from({ length: HEX_H }, (_, y) => Array.from({ length: HEX_W }, (_, x) => {
   if (!inHex(x, y)) return 0;
@@ -1113,7 +1114,8 @@ function drawGrid(p) {
   const [bg, dot, line, shadow, accent, ink] = ['--panel-2', '--shadow', '--line-strong', '--shadow', '--accent', '--ink'].map(tok);
 
   const cells = p.grid;
-  const at = c => ({ x: STEP_X * c.q + (STEP_X / 2) * c.r, y: STEP_Y * c.r });
+  // Datamine cube coords (q, r): q to the right, r up — same placement as the in-game grid
+  const at = c => ({ x: STEP_X * c.q, y: -STEP_Y * c.r - (STEP_Y / 2) * c.q });
   const all = cells.map(at).concat([{ x: 0, y: 0 }]);
   const minX = Math.min(...all.map(v => v.x)), minY = Math.min(...all.map(v => v.y));
   const W = Math.max(...all.map(v => v.x)) - minX + HEX_W + GRID_PAD * 2 + 1;
@@ -1164,7 +1166,7 @@ function drawGrid(p) {
     // 5×5 icon with a 1 px dark outline for contrast
     const g = GLYPHS[h.center ? 'center' : h.color];
     if (!g) continue;
-    const gx = ox + 5, gy = oy + 6;
+    const gx = ox + 6, gy = oy + 5;
     const on = (x, y) => g[y]?.[x] === '#';
     for (let y = -1; y <= 5; y++) for (let x = -1; x <= 5; x++) {
       if (on(x, y)) put(gx + x, gy + y, [255, 255, 255], a);
