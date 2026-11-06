@@ -113,7 +113,7 @@ const roleBase = r => (r || '').split(' (')[0].trim();
 const tip = (title, body = '') => `data-tip="${esc(title)}" data-tip-body="${esc(body)}"`;
 
 const img = (src, cls = '', alt = '') =>
-  `<img src="${esc(src || PLACEHOLDER)}" class="px-img ${cls}" alt="${esc(alt)}" loading="lazy" onerror="this.onerror=null;this.src='${PLACEHOLDER}'">`;
+  `<img src="${esc(src || PLACEHOLDER)}" class="px-img ${cls}" alt="${esc(alt)}" loading="lazy" decoding="async" onerror="this.onerror=null;this.src='${PLACEHOLDER}'">`;
 
 const typeBadge = (t, sm) => t ? `<span class="type-badge ${sm ? 'sm' : ''}" style="background:${TYPE_COLORS[t] || '#777'}">${esc(t)}</span>` : '';
 const roleBadge = (r, { ex = false, sm = false } = {}) => {
@@ -162,6 +162,7 @@ const LATEST_VERSION = D.versions[D.versions.length - 1];
 // ─── Theme picker ───────────────────────────────────────────
 function renderThemePicker() {
   const cur = document.documentElement.dataset.theme;
+  $('meta[name="theme-color"]')?.setAttribute('content', getComputedStyle(document.documentElement).getPropertyValue('--panel').trim());
   $('#theme-picker').innerHTML = THEMES.map(t => `
     <button class="theme-swatch" role="radio" aria-checked="${t.id === cur}" aria-label="${t.name}" ${tip(t.name + ' theme')}
       data-theme-id="${t.id}" style="background:linear-gradient(135deg, ${t.a} 50%, ${t.b} 50%)"></button>`).join('');
@@ -173,12 +174,14 @@ function renderThemePicker() {
 }
 document.addEventListener('click', e => {
   const b = e.target.closest('[data-theme-id]');
-  if (!b) return;
-  document.documentElement.dataset.theme = b.dataset.themeId;
-  try { localStorage.setItem('pmex-theme', b.dataset.themeId); } catch (err) { /* private mode */ }
-  renderThemePicker();
-  // The grid canvas bakes theme colours into pixels, so repaint it
-  if ($('#hexcanvas')) drawGrid(pairById(location.hash.split('/')[2]));
+  if (!b || b.dataset.themeId === document.documentElement.dataset.theme) return;
+  withTransition(() => {
+    document.documentElement.dataset.theme = b.dataset.themeId;
+    try { localStorage.setItem('pmex-theme', b.dataset.themeId); } catch (err) { /* private mode */ }
+    renderThemePicker();
+    // The grid canvas bakes theme colours into pixels, so repaint it
+    if ($('#hexcanvas')) drawGrid(pairById(location.hash.split('/')[2]));
+  }, 'theme');
 });
 
 // ─── Tooltip ────────────────────────────────────────────────
@@ -187,18 +190,97 @@ document.addEventListener('mouseover', e => {
   const t = e.target.closest('[data-tip]');
   if (!t) { tipEl.classList.remove('show'); return; }
   const body = t.dataset.tipBody;
+  if (tipEl._for === t && tipEl.classList.contains('show')) return;
+  tipEl._for = t;
   tipEl.innerHTML = `<b>${esc(t.dataset.tip)}</b>${body ? esc(body).replace(/\n/g, '<br>') : ''}`;
+  tipEl._size = null;
   tipEl.classList.add('show');
 });
+// Position on the next frame only; the size is measured once per tooltip content
+let tipFrame = 0, tipX = 0, tipY = 0;
 document.addEventListener('mousemove', e => {
   if (!tipEl.classList.contains('show')) return;
-  const r = tipEl.getBoundingClientRect();
-  let x = e.clientX + 14, y = e.clientY + 16;
-  if (x + r.width > innerWidth - 8) x = e.clientX - r.width - 14;
-  if (y + r.height > innerHeight - 8) y = e.clientY - r.height - 12;
-  tipEl.style.left = x + 'px';
-  tipEl.style.top = y + 'px';
+  tipX = e.clientX; tipY = e.clientY;
+  if (tipFrame) return;
+  tipFrame = requestAnimationFrame(() => {
+    tipFrame = 0;
+    const r = tipEl._size ||= { w: tipEl.offsetWidth, h: tipEl.offsetHeight };
+    let x = tipX + 14, y = tipY + 16;
+    if (x + r.w > innerWidth - 8) x = tipX - r.w - 14;
+    if (y + r.h > innerHeight - 8) y = tipY - r.h - 12;
+    tipEl.style.left = x + 'px';
+    tipEl.style.top = y + 'px';
+  });
+}, { passive: true });
+
+// ─── Motion ─────────────────────────────────────────────────
+const motionQuery = matchMedia('(prefers-reduced-motion: reduce)');
+const calm = () => motionQuery.matches;
+
+// Run a DOM swap inside a View Transition when the browser has them; `kind` picks the CSS animation
+function withTransition(swap, kind = 'page') {
+  if (!document.startViewTransition || calm() || document.hidden) return swap();
+  document.documentElement.dataset.vt = kind;
+  const vt = document.startViewTransition(swap);
+  vt.finished.finally(() => { delete document.documentElement.dataset.vt; });
+}
+
+// Cards rise in one after another; `from` skips items that were already on screen ("Show more")
+const STAGGER = '.stat-row, .pair-grid, .scout-grid, .leader-grid, .bring, .type-grid, .tickets, .kv, .moves, .passives, .stage-detail, .grid-3';
+function stagger(root = view, from = 0) {
+  if (calm() || !root) return;
+  const lists = root.matches?.(STAGGER) ? [root] : $$(STAGGER, root);
+  for (const list of lists) {
+    let i = 0;
+    for (const el of list.children) {
+      if (i >= from && !el.classList.contains('more-btn')) {
+        el.style.setProperty('--i', Math.min(i - from, 14));
+        el.classList.add('rise');
+      }
+      i++;
+    }
+  }
+}
+// Drop the class once played, so swapping another animation in (e.g. .flash) never replays it
+document.addEventListener('animationend', e => {
+  if (e.animationName === 'rise') { e.target.classList.remove('rise'); e.target.style.removeProperty('--i'); }
 });
+
+// Sliding highlight behind the active nav link
+const navEl = $('#nav');
+const navInk = $('.nav-ink', navEl);
+function moveNavInk() {
+  const a = $('a.active', navEl);
+  if (!navInk) return;
+  navEl.classList.add('has-ink');
+  if (!a) { navInk.style.opacity = 0; return; }
+  navInk.style.opacity = 1;
+  navInk.style.width = a.offsetWidth + 'px';
+  navInk.style.height = a.offsetHeight + 'px';
+  navInk.style.transform = `translate(${a.offsetLeft}px, ${a.offsetTop}px)`;
+  // Phone width: the nav scrolls sideways, keep the active link in view
+  if (navEl.scrollWidth > navEl.clientWidth) navEl.scrollTo({ left: a.offsetLeft - 16, behavior: calm() ? 'auto' : 'smooth' });
+}
+document.fonts?.ready.then(moveNavInk);
+
+// Header shadow + back-to-top button follow the scroll position
+const topbar = $('.topbar'), toTop = $('#to-top');
+const narrow = matchMedia('(max-width: 860px)');
+let scrollFrame = 0, lastY = scrollY;
+addEventListener('scroll', () => {
+  if (scrollFrame) return;
+  scrollFrame = requestAnimationFrame(() => {
+    scrollFrame = 0;
+    const dy = scrollY - lastY;
+    topbar.classList.toggle('scrolled', scrollY > 4);
+    if (Math.abs(dy) > 6) {
+      topbar.classList.toggle('tuck', narrow.matches && dy > 0 && scrollY > topbar.offsetHeight * 2);
+      lastY = scrollY;
+    }
+    toTop?.classList.toggle('show', scrollY > innerHeight * 1.2);
+  });
+}, { passive: true });
+toTop?.addEventListener('click', () => window.scrollTo({ top: 0, behavior: calm() ? 'auto' : 'smooth' }));
 
 // ─── Router ─────────────────────────────────────────────────
 const view = $('#view');
@@ -216,11 +298,20 @@ function route() {
   const fn = routes[name] || renderHome;
   $$('#nav a').forEach(a => a.classList.toggle('active',
     a.dataset.route === (name === 'pair' ? 'pairs' : name || 'home')));
+  moveNavInk();
   tipEl.classList.remove('show');
-  view.innerHTML = fn(decodeURIComponent(arg)) || '';
-  afterRender[name]?.(decodeURIComponent(arg));
-  if (!location.hash.includes('#scouts/')) window.scrollTo(0, 0);
+  const swap = () => {
+    view.innerHTML = fn(decodeURIComponent(arg)) || '';
+    afterRender[name]?.(decodeURIComponent(arg));
+    if (!location.hash.includes('#scouts/')) window.scrollTo(0, 0);
+    stagger();
+  };
+  // First paint and the async detail reload swap in place; real navigations cross-fade
+  routed && !route.inPlace ? withTransition(swap) : swap();
+  routed = true;
+  route.inPlace = false;
 }
+let routed = false;
 const afterRender = {};
 addEventListener('hashchange', route);
 
@@ -586,7 +677,7 @@ function drawPairFilters() {
   $('#pf-active').innerHTML = chips.length ? chips.join('') + uiText('<button class="pf-reset-link" data-pf-reset>Xoá tất cả</button>') : '';
 }
 
-function drawPairGrid() {
+function drawPairGrid(from = 0) {
   const list = filteredPairs();
   $('#pf-count').innerHTML = `<b>${list.length}</b> / ${pfPool().length} pair`;
   $('#pair-grid').innerHTML = list.length
@@ -594,6 +685,7 @@ function drawPairGrid() {
       (list.length > pairFilter.limit ? ui`<button class="chip more-btn" data-more>Hiện thêm (${list.length - pairFilter.limit} còn lại) ▼</button>` : '')
     : ui`<div class="empty" style="grid-column:1/-1">${img(PLACEHOLDER)}Không có sync pair nào khớp bộ lọc.
         <button class="chip" data-pf-reset style="margin-top:10px">✕ Xoá tất cả bộ lọc</button></div>`;
+  stagger($('#pair-grid'), from);
 }
 const pfRefresh = () => { pairFilter.limit = PAGE; drawPairFilters(); drawPairGrid(); };
 
@@ -651,7 +743,7 @@ document.addEventListener('click', e => {
     t.closest('[data-pf-toggle]').setAttribute('aria-expanded', pairFilter.open);
     return;
   }
-  if (t.closest('[data-more]')) { pairFilter.limit += PAGE; drawPairGrid(); }
+  if (t.closest('[data-more]')) { const from = pairFilter.limit; pairFilter.limit += PAGE; drawPairGrid(from); }
 });
 // Remember which groups are folded across redraws (toggle doesn't bubble → capture)
 document.addEventListener('toggle', e => {
@@ -687,7 +779,7 @@ function renderPair(id) {
   if (!D.pairs.some(x => x.id === id)) return ui`<div class="empty">${img(PLACEHOLDER)}Không tìm thấy sync pair. <a href="#/pairs">← Quay lại</a></div>`;
   if (!pairDetail[id]) {
     loadPairDetail(id)
-      .then(() => { if (location.hash === `#/pair/${id}`) route(); })
+      .then(() => { if (location.hash === `#/pair/${id}`) { route.inPlace = true; route(); } })
       .catch(() => { view.innerHTML = ui`<div class="empty">${img(PLACEHOLDER)}Không tải được chi tiết pair (data/pairs/${esc(id)}.js). Chạy lại <code>npm run build</code>.</div>`; });
     return `<div class="loading">${img(PLACEHOLDER, 'spin')} Loading…</div>`;
   }
@@ -1109,7 +1201,14 @@ document.addEventListener('mousemove', e => {
 document.addEventListener('mouseout', e => {
   if (e.target.id === 'hexcanvas' && gridHover !== null) { gridHover = null; drawGrid(pairById(location.hash.split('/')[2])); }
 });
-addEventListener('resize', () => { if ($('#hexcanvas')) drawGrid(pairById(location.hash.split('/')[2])); });
+let resizeFrame = 0;
+addEventListener('resize', () => {
+  cancelAnimationFrame(resizeFrame);
+  resizeFrame = requestAnimationFrame(() => {
+    moveNavInk();
+    if ($('#hexcanvas')) drawGrid(pairById(location.hash.split('/')[2]));
+  });
+});
 
 function gridView(p) {
   const cells = p.grid;
@@ -1248,6 +1347,7 @@ function drawScouts() {
   const months = Object.keys(byMonth).sort((a, b) => monthKey(b).localeCompare(monthKey(a)));
   $('#scout-list').innerHTML = months.length ? months.map(m => monthBlock(m, byMonth[m])).join('') :
     ui`<div class="empty">${img(PLACEHOLDER)}Không có banner nào khớp.</div>`;
+  stagger($('#scout-list'));
 }
 
 function monthBlock(m, list) {
@@ -1640,6 +1740,7 @@ document.addEventListener('click', e => {
   const gi = location.hash.split('/')[2];
   const g = D.gyms[gi !== undefined && gi !== '' ? +gi : D.gyms.length - 1];
   $('#stage-detail').innerHTML = stageDetail(g);
+  stagger($('#stage-detail'));
   $('#hpchart').innerHTML = hpChart(g);
   $$('.matrix th.stage').forEach(th => th.classList.toggle('sel', +th.dataset.stage === gymStage));
   if (!st.closest('#stage-detail')) $('#stage-detail').scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -1650,6 +1751,7 @@ document.addEventListener('click', e => {
 function boot() {
 $$('[data-ui-label]').forEach(el => { el.textContent = uiText(el.dataset.uiLabel); });
 $('#theme-picker').setAttribute('aria-label', uiText('Giao diện'));
+toTop?.setAttribute('aria-label', uiText('Lên đầu trang'));
 if (!D) {
   view.innerHTML = ui`<div class="empty">${img(PLACEHOLDER)}Chưa có <code>data/data.js</code>. Chạy <code>npm run build</code> ở thư mục gốc repo.</div>`;
 } else {

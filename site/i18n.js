@@ -38,6 +38,7 @@
     'General (thường)': 'General',
     'Chưa rõ': 'Unknown',
     'Không có': 'None',
+    'Lên đầu trang': 'Back to top',
     'Loại pair': 'Pair category',
     'Đặc điểm': 'Features',
     'Có EX Role': 'Has EX Role',
