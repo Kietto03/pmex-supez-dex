@@ -915,12 +915,12 @@ details.more[open] summary::before { content: '▼ '; }
    only the movement between states gets smoother.
    ═══════════════════════════════════════════════════════════════ */
 :root {
-  --ease-out: cubic-bezier(.22, 1, .36, 1);
-  --ease-spring: cubic-bezier(.34, 1.56, .64, 1);
-  --t-fast: .14s;
-  --t-med: .26s;
-  --t-slow: .5s;
-  --lift: 3px;
+  --ease-out: cubic-bezier(.33, 1, .68, 1);
+  --ease-spring: cubic-bezier(.34, 1.25, .64, 1);
+  --t-fast: .2s;
+  --t-med: .38s;
+  --t-slow: .75s;
+  --lift: 2px;
 }
 
 /* ─── Focus, scrollbars, tap ───────────────────────────────── */
@@ -945,7 +945,7 @@ body { transition: background-color var(--t-med) var(--ease-out), color var(--t-
   backdrop-filter: blur(10px) saturate(1.3);
   box-shadow: 0 var(--sh) 0 var(--shadow), 0 10px 24px -12px rgba(0, 0, 0, .45);
 }
-.logo-ball { transition: transform var(--t-slow) var(--ease-spring); }
+.logo-ball { transition: transform 1.2s var(--ease-out); }
 .logo:hover .logo-ball { transform: rotate(-360deg); }
 .nav { position: relative; min-width: 0; }
 .nav a {
@@ -953,7 +953,7 @@ body { transition: background-color var(--t-med) var(--ease-out), color var(--t-
   transition: color var(--t-fast) var(--ease-out), border-color var(--t-fast) var(--ease-out), transform var(--t-fast) var(--ease-out);
 }
 .nav a img { transition: transform var(--t-med) var(--ease-spring); }
-.nav a:hover img { transform: translateY(-2px) scale(1.12); }
+.nav a:hover img { transform: translateY(-1px) scale(1.08); }
 .nav a:active { transform: translate(1px, 1px); }
 .nav-ink {
   position: absolute; left: 0; top: 0; z-index: 0;
@@ -962,7 +962,7 @@ body { transition: background-color var(--t-med) var(--ease-out), color var(--t-
   border: 2px solid var(--line-strong);
   box-shadow: 3px 3px 0 var(--shadow);
   pointer-events: none;
-  transition: transform .38s var(--ease-out), width .38s var(--ease-out), height .38s var(--ease-out), opacity var(--t-fast);
+  transition: transform .5s var(--ease-out), width .5s var(--ease-out), height .5s var(--ease-out), opacity var(--t-med);
 }
 .nav:not(.has-ink) .nav-ink { display: none; }
 .nav.has-ink a.active { background: transparent; border-color: transparent; box-shadow: none; }
@@ -991,66 +991,66 @@ body { transition: background-color var(--t-med) var(--ease-out), color var(--t-
   transform: translate(calc(var(--lift) * -1), calc(var(--lift) * -1));
   box-shadow: calc(var(--sh) + var(--lift)) calc(var(--sh) + var(--lift)) 0 var(--shadow);
 }
-.pair-card:active { transform: translate(1px, 1px); box-shadow: 1px 1px 0 var(--shadow); transition-duration: .06s; }
+.pair-card:active { transform: translate(1px, 1px); box-shadow: 1px 1px 0 var(--shadow); transition-duration: .1s; }
 .pc-art .poke, .pc-art .trainer { transition: transform var(--t-med) var(--ease-spring); transform-origin: 50% 100%; }
-.pair-card:hover .pc-art .poke { transform: translateY(-6px) scale(1.06); }
-.pair-card:hover .pc-art .trainer { transform: translateX(3px); }
-.pair-card:hover .pc-art { animation: stripes 1.2s linear infinite; }
+.pair-card:hover .pc-art .poke { transform: translateY(-4px) scale(1.04); }
+.pair-card:hover .pc-art .trainer { transform: translateX(2px); }
+.pair-card:hover .pc-art { animation: stripes 2.4s linear infinite; }
 @keyframes stripes { to { background-position: 0 0, 17px 0; } }
 .scout-card:hover, .leader:hover, .bring-item:hover { transform: translate(-2px, -2px); box-shadow: calc(var(--sh) + 2px) calc(var(--sh) + 2px) 0 var(--shadow); }
 .stat-tile:hover { transform: translate(-2px, -2px); box-shadow: calc(var(--sh) + 2px) calc(var(--sh) + 2px) 0 var(--shadow); }
 .stat-tile .icon { transition: transform var(--t-med) var(--ease-spring); }
-.stat-tile:hover .icon { transform: rotate(-12deg) scale(1.15); }
+.stat-tile:hover .icon { transform: rotate(-8deg) scale(1.08); }
 .leader img { transition: transform var(--t-med) var(--ease-spring); }
-.leader:hover img { transform: translateY(-3px); }
+.leader:hover img { transform: translateY(-2px); }
 .tl-pair:hover, a.ru:hover { transform: translate(-1px, -1px); }
 .tl-pair img, .ru img, .bring-item .pairs img { transition: transform var(--t-med) var(--ease-spring); }
-.tl-pair:hover img, a.ru:hover img:not(.t) { transform: translateY(-3px) scale(1.08); }
+.tl-pair:hover img, a.ru:hover img:not(.t) { transform: translateY(-2px) scale(1.05); }
 .type-cell:not(.zero):hover { transform: translate(-2px, -2px); box-shadow: inset -3px -3px 0 rgba(0,0,0,.18), 5px 5px 0 var(--shadow); }
 .language-option:hover { border-color: var(--accent); }
 .hero-parade a { transition: transform var(--t-med) var(--ease-spring); }
-.hero-parade a:hover { transform: translateY(-4px) scale(1.18); }
+.hero-parade a:hover { transform: translateY(-3px) scale(1.1); }
 .back { transition: color var(--t-fast), transform var(--t-fast) var(--ease-out); }
 .back:hover { transform: translateX(-3px); }
 .cell-list button, .gantt-row .gl, .matrix th.stage, .pf-group > summary { transition: color var(--t-fast), background-color var(--t-fast), border-color var(--t-fast); }
 .gantt-bar { transition: filter var(--t-fast), transform var(--t-fast) var(--ease-out); transform-origin: left center; }
-.gantt-bar:hover { filter: brightness(1.15); transform: scaleY(1.2); }
-.hp-col .hp-bar { transition: height .4s var(--ease-out), filter var(--t-fast); }
+.gantt-bar:hover { filter: brightness(1.12); transform: scaleY(1.12); }
+.hp-col .hp-bar { transition: height .6s var(--ease-out), filter var(--t-fast); }
 .hp-col:hover .hp-bar { filter: brightness(1.12); }
 
 /* ─── Entrances ─────────────────────────────────────────────── */
 /* Lists rise in one by one (JS adds .rise + --i) */
-.rise { animation: rise .46s var(--ease-out) backwards; animation-delay: calc(var(--i, 0) * 32ms); }
-@keyframes rise { from { opacity: 0; transform: translateY(14px) scale(.985); } }
+.rise { animation: rise .7s var(--ease-out) backwards; animation-delay: calc(var(--i, 0) * 50ms); }
+@keyframes rise { from { opacity: 0; transform: translateY(10px); } }
 /* Infographic bars grow from their baseline */
-.bar-fill, .sb-fill, .gantt-bar, .gs-bar span { transform-origin: left center; animation: grow-x .7s var(--ease-out) .12s backwards; }
-.sb-fill { transition: width .35s var(--ease-out); }
-.hp-bar { transform-origin: 50% 100%; animation: grow-y .6s var(--ease-out) backwards; }
-.hp-col:nth-child(2n) .hp-bar { animation-delay: .04s; }
-.hp-col:nth-child(3n) .hp-bar { animation-delay: .08s; }
+.bar-fill, .sb-fill, .gantt-bar, .gs-bar span { transform-origin: left center; animation: grow-x 1.1s var(--ease-out) .2s backwards; }
+.sb-fill { transition: width .6s var(--ease-out); }
+.hp-bar { transform-origin: 50% 100%; animation: grow-y 1s var(--ease-out) .15s backwards; }
+.hp-col:nth-child(2n) .hp-bar { animation-delay: .22s; }
+.hp-col:nth-child(3n) .hp-bar { animation-delay: .29s; }
 @keyframes grow-x { from { transform: scaleX(0); } }
 @keyframes grow-y { from { transform: scaleY(0); } }
 /* Hero: title steps in, a light sweep crosses the panel now and then */
-.hero h1, .hero p, .dh-info h1, .dh-info .sub { animation: rise .55s var(--ease-out) backwards; }
-.hero p, .dh-info .sub { animation-delay: .08s; }
+.hero h1, .hero p, .dh-info h1, .dh-info .sub { animation: rise .8s var(--ease-out) backwards; }
+.hero p, .dh-info .sub { animation-delay: .12s; }
 .hero::before {
   content: ''; position: absolute; inset: 0; z-index: 0; pointer-events: none;
   background: linear-gradient(105deg, transparent 40%, rgba(255,255,255,.12) 48%, rgba(255,255,255,.04) 52%, transparent 60%);
   background-size: 250% 100%; background-position: 130% 0;
-  animation: sweep 7s var(--ease-out) 1.2s infinite;
+  animation: sweep 10s ease-in-out 1.5s infinite;
 }
-@keyframes sweep { 0% { background-position: 130% 0; } 30%, 100% { background-position: -30% 0; } }
+@keyframes sweep { 0% { background-position: 130% 0; } 35%, 100% { background-position: -30% 0; } }
 .hero > * { position: relative; z-index: 1; }
-.hero > .hero-deco { position: absolute; z-index: 0; animation: deco-spin 40s linear infinite; }
+.hero > .hero-deco { position: absolute; z-index: 0; animation: deco-spin 60s linear infinite; }
 @keyframes deco-spin { to { transform: rotate(345deg); } }
-.dh-art .trainer { animation: slide-in .6s var(--ease-out) backwards; }
-.dh-art .poke { animation: slide-in-r .6s var(--ease-out) .08s backwards, bob 1.8s steps(4) .7s infinite; }
-@keyframes slide-in { from { opacity: 0; transform: translateX(-24px); } }
-@keyframes slide-in-r { from { opacity: 0; transform: translateX(24px); } }
-.textbox { animation: rise .5s var(--ease-out) .18s backwards; }
-.month-ribbon { animation: ribbon .5s var(--ease-out) backwards; }
+.dh-art .trainer { animation: slide-in .85s var(--ease-out) backwards; }
+.dh-art .poke { animation: slide-in-r .85s var(--ease-out) .12s backwards, bob 1.8s steps(4) 1s infinite; }
+@keyframes slide-in { from { opacity: 0; transform: translateX(-16px); } }
+@keyframes slide-in-r { from { opacity: 0; transform: translateX(16px); } }
+.textbox { animation: rise .75s var(--ease-out) .25s backwards; }
+.month-ribbon { animation: ribbon .8s var(--ease-out) backwards; }
 @keyframes ribbon { from { opacity: 0; clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 0 0 0); } }
-.phase.now { animation: rise .5s var(--ease-out) backwards; }
+.phase.now { animation: rise .75s var(--ease-out) backwards; }
 
 /* Panels swapped in place (form switch, level tabs, stage picker) fade in */
 #stats-panel > *, #moves-panel > *, #passives-panel > *, #grid-wrap > * { animation: fade-in var(--t-med) var(--ease-out) backwards; }
@@ -1092,14 +1092,14 @@ body { transition: background-color var(--t-med) var(--ease-out), color var(--t-
 
 /* ─── Page & theme transitions (View Transitions API) ───────── */
 .view { view-transition-name: view; }
-::view-transition-old(view) { animation: vt-out .16s var(--ease-out) both; }
-::view-transition-new(view) { animation: vt-in .32s var(--ease-out) .04s both; }
-@keyframes vt-out { to { opacity: 0; transform: translateY(-6px); } }
-@keyframes vt-in { from { opacity: 0; transform: translateY(10px); } }
+::view-transition-old(view) { animation: vt-out .28s ease-in both; }
+::view-transition-new(view) { animation: vt-in .55s var(--ease-out) .1s both; }
+@keyframes vt-out { to { opacity: 0; transform: translateY(-4px); } }
+@keyframes vt-in { from { opacity: 0; transform: translateY(8px); } }
 /* Theme switch: one snapshot of the whole page, the new palette wipes in diagonally */
 [data-vt="theme"] .topbar, [data-vt="theme"] .view { view-transition-name: none; }
 [data-vt="theme"]::view-transition-old(root) { animation: none; }
-[data-vt="theme"]::view-transition-new(root) { animation: theme-wipe .6s var(--ease-out) both; }
+[data-vt="theme"]::view-transition-new(root) { animation: theme-wipe .9s cubic-bezier(.65, 0, .35, 1) both; }
 @keyframes theme-wipe { from { clip-path: polygon(0 0, 0 0, 0 0); } to { clip-path: polygon(0 0, 250% 0, 0 250%); } }
 /* The header stays put (live), so the nav highlight slides instead of ghosting */
 [data-vt="page"]::view-transition-group(topbar), [data-vt="page"]::view-transition-new(topbar) { animation: none; }
@@ -1108,7 +1108,7 @@ body { transition: background-color var(--t-med) var(--ease-out), color var(--t-
 /* ─── Small screens ─────────────────────────────────────────── */
 /* Narrow screens: header tucks away while scrolling down, returns on scroll up */
 @media (max-width: 860px) {
-  .topbar { transition: transform .3s var(--ease-out), background-color var(--t-med) var(--ease-out), box-shadow var(--t-med) var(--ease-out); }
+  .topbar { transition: transform .45s var(--ease-out), background-color var(--t-med) var(--ease-out), box-shadow var(--t-med) var(--ease-out); }
   .topbar.tuck { transform: translateY(calc(-100% - var(--sh))); }
 }
 @media (max-width: 560px) {

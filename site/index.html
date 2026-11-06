@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400;500;600;700&family=Press+Start+2P&family=Nunito:wght@400;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=revamp-1">
+  <link rel="stylesheet" href="styles.css?v=revamp-2">
   <script>
     // Apply the saved theme before first paint to avoid a flash
     try {
@@ -49,7 +49,7 @@
   <div class="tooltip" id="tooltip" role="tooltip"></div>
   <button class="to-top" id="to-top" type="button" aria-label="Back to top">▲</button>
 
-  <script src="i18n.js?v=revamp-1"></script>
+  <script src="i18n.js?v=revamp-2"></script>
   <script>
     // Each visit loads a fresh index; app and details use that build's cache key.
     const dataScript = document.createElement('script');
@@ -60,7 +60,7 @@
     dataScript.onerror = loadError;
     dataScript.onload = () => {
       const appScript = document.createElement('script');
-      appScript.src = `app.js?v=${encodeURIComponent(window.PMEX_DATA.builtAt)}&ui=revamp-1`;
+      appScript.src = `app.js?v=${encodeURIComponent(window.PMEX_DATA.builtAt)}&ui=revamp-2`;
       appScript.onerror = loadError;
       document.head.appendChild(appScript);
     };

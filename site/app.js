@@ -234,7 +234,7 @@ function stagger(root = view, from = 0) {
     let i = 0;
     for (const el of list.children) {
       if (i >= from && !el.classList.contains('more-btn')) {
-        el.style.setProperty('--i', Math.min(i - from, 14));
+        el.style.setProperty('--i', Math.min(i - from, 10));
         el.classList.add('rise');
       }
       i++;
