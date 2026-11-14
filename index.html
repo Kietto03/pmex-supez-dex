@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="night">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#0f1226">
+  <meta name="description" content="Pokémon Masters EX Datamine — Sync Pairs, Sync Grids, Scouts, events, Free Gems, clear teams, Trainer Lodge and Pasio Gym Battles in a pixel infographic viewer.">
+  <title>PMEX Datamine Dex</title>
+  <link rel="icon" href="assets/items/poke-ball.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400;500;600;700&family=Press+Start+2P&family=Nunito:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css?v=revamp-13">
+  <script>
+    // Apply the saved theme before first paint to avoid a flash
+    try {
+      const t = localStorage.getItem('pmex-theme') ||
+        (matchMedia('(prefers-color-scheme: light)').matches ? 'pokedex' : 'night');
+      document.documentElement.dataset.theme = t;
+    } catch (e) {}
+  </script>
+</head>
+<body>
+  <header class="topbar">
+    <a class="logo" href="#/">
+      <img src="assets/items/poke-ball.png" alt="" class="px-img logo-ball">
+      <span class="logo-text">PMEX<span class="logo-sub">DATAMINE DEX</span></span>
+    </a>
+    <nav class="nav" id="nav" aria-label="Main">
+      <a href="#/" data-route="home"><img src="assets/items/star-piece.png" alt="" class="px-img"><span data-ui-label="Trang chủ">Home</span></a>
+      <a href="#/pairs" data-group="pairs"><img src="assets/items/exp-share.png" alt="" class="px-img"><span>Pairs</span></a>
+      <a href="#/events" data-group="events"><img src="assets/items/rare-candy.png" alt="" class="px-img"><span data-ui-label="Sự kiện">Events</span></a>
+      <a href="#/gym" data-group="battle"><img src="assets/items/ultra-ball.png" alt="" class="px-img"><span data-ui-label="Chiến đấu">Battle</span></a>
+      <a href="#/settings" data-route="settings" class="nav-icon" title="Settings"><span aria-hidden="true" class="nav-gear">⚙</span><span class="sr-only" data-ui-label="Cài đặt">Settings</span></a>
+    </nav>
+    <div class="theme-picker" id="theme-picker" role="radiogroup" aria-label="Theme"></div>
+    <nav class="subnav" id="subnav" aria-label="Section" hidden>
+      <div class="subnav-set" data-group="pairs">
+        <a href="#/pairs" data-route="pairs"><img src="assets/items/exp-share.png" alt="" class="px-img">Sync Pairs</a>
+        <a href="#/lodge" data-route="lodge"><img src="assets/items/great-ball.png" alt="" class="px-img">Trainer Lodge</a>
+      </div>
+      <div class="subnav-set" data-group="events">
+        <a href="#/events" data-route="events"><img src="assets/items/rare-candy.png" alt="" class="px-img"><span data-ui-label="Lịch">Calendar</span></a>
+        <a href="#/scouts" data-route="scouts"><img src="assets/items/rainbow-wing.png" alt="" class="px-img">Scouts</a>
+        <a href="#/events/gems" data-route="events/gems"><img src="assets/items/star-piece.png" alt="" class="px-img"><span data-ui-label="Gem free">Free Gems</span></a>
+      </div>
+      <div class="subnav-set" data-group="battle">
+        <a href="#/gym" data-route="gym"><img src="assets/items/ultra-ball.png" alt="" class="px-img">Pasio Gym Battle</a>
+        <a href="#/clears" data-route="clears"><img src="assets/items/master-ball.png" alt="" class="px-img"><span data-ui-label="Clear D.C.">D.C. clears</span></a>
+        <a href="#/clears/gvg" data-route="clears/gvg"><img src="assets/items/poke-ball.png" alt="" class="px-img"><span data-ui-label="Clear GvG">GvG clears</span></a>
+      </div>
+    </nav>
+  </header>
+
+  <main id="view" class="view">
+    <div class="loading"><img src="assets/items/poke-ball.png" alt="" class="px-img spin"> Loading…</div>
+  </main>
+
+  <footer class="footer">
+    <span id="footer-info"></span>
+    <a href="#/status" class="footer-link" data-ui-label="Cập nhật dữ liệu">Data updates</a>
+    <span>Sprites: Pokémon Showdown · PokéAPI — fan project, not affiliated with DeNA / The Pokémon Company.</span>
+  </footer>
+
+  <div class="tooltip" id="tooltip" role="tooltip"></div>
+  <button class="to-top" id="to-top" type="button" aria-label="Back to top">▲</button>
+
+  <script src="i18n.js?v=revamp-13"></script>
+  <script>
+    // Each visit loads a fresh index; app and details use that build's cache key.
+    const dataScript = document.createElement('script');
+    dataScript.src = `data/data.js?v=${Date.now()}`;
+    const loadError = () => {
+      document.getElementById('view').textContent = window.PMEX_I18N.text('Không tải được dữ liệu. Vui lòng tải lại trang.');
+    };
+    dataScript.onerror = loadError;
+    dataScript.onload = () => {
+      const appScript = document.createElement('script');
+      appScript.src = `app.js?v=${encodeURIComponent(window.PMEX_DATA.builtAt)}&ui=revamp-13`;
+      appScript.onerror = loadError;
+      document.head.appendChild(appScript);
+    };
+    document.head.appendChild(dataScript);
+  </script>
+</body>
+</html>
